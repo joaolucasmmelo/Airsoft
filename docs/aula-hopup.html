@@ -1,0 +1,748 @@
+<title>Balística do Hop-up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root{
+  --ground:#F3F5EF; --surface:#FFFFFF; --surface-2:#E9EDE4;
+  --ink:#171C17; --ink-2:#3D473C; --muted:#5A655A;
+  --rule:#D5DBCF; --rule-soft:#E4E9DE;
+  --accent:#0D7280; --accent-soft:#E0EFF1;
+  --blue:#2A5FA0; --green:#2C7A45; --crimson:#A6382A; --amber:#8E5C10;
+  --shadow:0 1px 2px rgba(23,28,23,.06), 0 8px 24px -12px rgba(23,28,23,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0F120E; --surface:#171C16; --surface-2:#1F251E;
+    --ink:#E8ECE2; --ink-2:#C3CBBE; --muted:#98A395;
+    --rule:#2B322A; --rule-soft:#232A22;
+    --accent:#54D3E4; --accent-soft:#122A2E;
+    --blue:#7BAAE8; --green:#63CE86; --crimson:#F0765D; --amber:#EBA646;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0F120E; --surface:#171C16; --surface-2:#1F251E;
+  --ink:#E8ECE2; --ink-2:#C3CBBE; --muted:#98A395;
+  --rule:#2B322A; --rule-soft:#232A22;
+  --accent:#54D3E4; --accent-soft:#122A2E;
+  --blue:#7BAAE8; --green:#63CE86; --crimson:#F0765D; --amber:#EBA646;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  font-size:17px; line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:2px}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 24px 96px;
+  display:grid; grid-template-columns:1fr; gap:0}
+@media (min-width:1060px){
+  .wrap{grid-template-columns:216px minmax(0,1fr); gap:56px; padding-right:40px}
+}
+
+/* ---------- cabeçalho ---------- */
+.masthead{grid-column:1/-1; padding:56px 0 36px; border-bottom:1px solid var(--rule)}
+.eyebrow{
+  font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:11.5px; font-weight:500;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin:0 0 18px;
+}
+h1{
+  font-family:Archivo,"Helvetica Neue",sans-serif; font-weight:800;
+  font-size:clamp(38px,6.2vw,66px); line-height:1.02; letter-spacing:-.028em;
+  margin:0 0 20px; text-wrap:balance;
+}
+h1 em{font-style:normal; color:var(--accent)}
+.standfirst{font-size:20px; line-height:1.55; color:var(--ink-2); max-width:60ch; margin:0}
+
+/* ---------- índice ---------- */
+.toc{display:none}
+@media (min-width:1060px){
+  .toc{display:block; position:sticky; top:32px; align-self:start; padding-top:44px}
+}
+.toc-title{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 14px}
+.toc ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px;
+  counter-reset:toc}
+.toc a{
+  font-family:Archivo,sans-serif; font-size:13.5px; line-height:1.35; font-weight:500;
+  color:var(--muted); text-decoration:none; display:flex; gap:9px; counter-increment:toc;
+}
+.toc a::before{content:counter(toc,decimal-leading-zero);
+  font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--rule); padding-top:2px}
+.toc a:hover{color:var(--accent)}
+
+/* ---------- corpo ---------- */
+.doc{padding-top:44px; min-width:0; display:flex; flex-direction:column; gap:52px}
+section{scroll-margin-top:24px}
+h2{
+  font-family:Archivo,sans-serif; font-weight:700; font-size:29px; letter-spacing:-.02em;
+  line-height:1.18; margin:0 0 6px; text-wrap:balance;
+}
+.sec-num{font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--accent); display:block; margin-bottom:10px}
+h3{font-family:Archivo,sans-serif; font-weight:600; font-size:18.5px; letter-spacing:-.01em;
+  margin:30px 0 8px; text-wrap:balance}
+p{margin:0 0 16px; max-width:66ch}
+.lede{font-size:18.5px; color:var(--ink-2); max-width:64ch}
+strong{font-weight:600}
+a{color:var(--accent)}
+code{font-family:"IBM Plex Mono",monospace; font-size:.87em; background:var(--surface-2);
+  padding:.14em .38em; border-radius:3px; color:var(--ink)}
+ul{max-width:66ch; padding-left:20px; margin:0 0 16px}
+li{margin-bottom:7px}
+li::marker{color:var(--accent)}
+
+/* ---------- fórmula ---------- */
+.formula{
+  background:var(--surface); border:1px solid var(--rule); border-left:3px solid var(--accent);
+  border-radius:4px; padding:20px 24px; margin:22px 0; box-shadow:var(--shadow);
+  overflow-x:auto;
+}
+.formula .eq{font-family:"IBM Plex Mono",monospace; font-size:17px; font-weight:500;
+  white-space:nowrap; margin:0 0 10px; color:var(--ink)}
+.formula .eq:last-child{margin-bottom:0}
+.formula .note{font-size:14.5px; color:var(--muted); margin:10px 0 0; max-width:none}
+.formula .where{font-family:"IBM Plex Mono",monospace; font-size:13px; color:var(--muted);
+  line-height:1.85; margin:12px 0 0; white-space:pre}
+
+/* ---------- callout ---------- */
+.trap{
+  background:var(--surface); border:1px solid var(--rule); border-radius:4px;
+  padding:18px 22px; margin:22px 0; box-shadow:var(--shadow);
+}
+.trap-tag{font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--amber); margin:0 0 8px; font-weight:600}
+.trap p{margin:0; font-size:16px; max-width:64ch}
+.trap p + p{margin-top:11px}
+
+/* ---------- tabelas ---------- */
+.table-scroll{overflow-x:auto; margin:22px 0; border:1px solid var(--rule);
+  border-radius:4px; background:var(--surface); box-shadow:var(--shadow)}
+table{border-collapse:collapse; width:100%; font-size:14.5px; min-width:460px}
+th,td{padding:9px 16px; text-align:right; border-bottom:1px solid var(--rule-soft)}
+th:first-child,td:first-child{text-align:left}
+thead th{
+  font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--muted); font-weight:600;
+  border-bottom:1px solid var(--rule); white-space:nowrap;
+}
+tbody td{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; color:var(--ink-2)}
+tbody td:first-child{font-family:Archivo,sans-serif; font-weight:500; color:var(--ink)}
+tbody tr:last-child td{border-bottom:none}
+tr.mark td{background:var(--accent-soft)}
+tr.mark td:first-child{color:var(--accent); font-weight:600}
+
+/* ---------- gráfico ---------- */
+figure{margin:26px 0; padding:0}
+.chart{
+  background:var(--surface); border:1px solid var(--rule); border-radius:4px;
+  padding:20px 18px 12px; box-shadow:var(--shadow); overflow-x:auto;
+}
+.chart svg{display:block; width:100%; height:auto; min-width:520px}
+.grid-line{stroke:var(--rule-soft); stroke-width:1}
+.axis-line{stroke:var(--rule); stroke-width:1.5}
+.tick{font-family:"IBM Plex Mono",monospace; font-size:11px; fill:var(--muted)}
+.axis-name{font-family:"IBM Plex Mono",monospace; font-size:10.5px; fill:var(--muted);
+  letter-spacing:.1em; text-transform:uppercase}
+.t-line{fill:none; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round}
+.t-faint{fill:none; stroke-width:1.4; stroke-dasharray:3 4; opacity:.5}
+.curve-label{font-family:Archivo,sans-serif; font-size:12.5px; font-weight:600}
+figcaption{font-size:14px; color:var(--muted); margin-top:11px; max-width:66ch}
+
+.legend{display:flex; flex-wrap:wrap; gap:18px; margin-top:14px;
+  font-family:Archivo,sans-serif; font-size:13px; color:var(--ink-2)}
+.legend span{display:flex; align-items:center; gap:7px}
+.swatch{width:16px; height:3px; border-radius:2px; flex:none}
+
+/* ---------- Q&A ---------- */
+.qa{display:flex; flex-direction:column; gap:2px; margin-top:22px}
+details{background:var(--surface); border:1px solid var(--rule); border-radius:4px;
+  padding:0; overflow:hidden}
+details + details{margin-top:8px}
+summary{
+  font-family:Archivo,sans-serif; font-weight:600; font-size:16px; line-height:1.4;
+  padding:15px 20px; cursor:pointer; list-style:none; color:var(--ink);
+  display:flex; gap:12px; align-items:flex-start;
+}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"?"; font-family:"IBM Plex Mono",monospace; color:var(--accent);
+  font-size:14px; flex:none; padding-top:1px}
+summary:hover{color:var(--accent)}
+details[open] summary{border-bottom:1px solid var(--rule-soft)}
+.answer{padding:16px 20px 6px 20px}
+.answer p{font-size:16px; max-width:62ch}
+
+/* ---------- rodapé ---------- */
+.footer{grid-column:1/-1; margin-top:64px; padding-top:26px; border-top:1px solid var(--rule);
+  font-family:"IBM Plex Mono",monospace; font-size:12.5px; color:var(--muted);
+  display:flex; flex-wrap:wrap; gap:8px 28px}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Técnicas Avançadas para Motores de Jogos Digitais · Unity 6 · URP</p>
+    <h1>Por que uma bolinha de plástico <em>sobe</em> antes de cair</h1>
+    <p class="standfirst">A física do hop-up de airsoft, das equações até o código que roda no
+    <code>FixedUpdate</code> — e as armadilhas do motor que decidem se a simulação vai bater com a
+    realidade ou errar por 5%.</p>
+  </header>
+
+  <nav class="toc" aria-label="Índice">
+    <p class="toc-title">Nesta aula</p>
+    <ol>
+      <li><a href="#s1">O problema real</a></li>
+      <li><a href="#s2">Da energia à velocidade</a></li>
+      <li><a href="#s3">O arrasto domina tudo</a></li>
+      <li><a href="#s4">Efeito Magnus</a></li>
+      <li><a href="#s5">A direção perpendicular</a></li>
+      <li><a href="#s6">Isso virando código</a></li>
+      <li><a href="#s7">As armadilhas do motor</a></li>
+      <li><a href="#s8">Arquitetura da cena</a></li>
+      <li><a href="#s9">Calibração e validação</a></li>
+      <li><a href="#s10">Defesa oral</a></li>
+    </ol>
+  </nav>
+
+  <main class="doc">
+
+  <!-- ============ 1 ============ -->
+  <section id="s1">
+    <span class="sec-num">Seção 01</span>
+    <h2>O problema real: uma BB de 0,2 g é péssima em voar</h2>
+
+    <p class="lede">Airsoft usa projéteis plásticos esféricos de 6 mm pesando 0,20 g. São leves,
+    lisos e lentos demais para ter boa balística — e é justamente isso que torna o hop-up
+    necessário.</p>
+
+    <p>Quando uma arma de airsoft dispara, ela entrega ao projétil cerca de <strong>1,49 joule</strong>
+    de energia. Isso lança a BB a 122 m/s. Parece rápido, mas o ar freia essa esfera com uma
+    violência desproporcional: a força de arrasto na saída do cano é <strong>62 vezes maior que o
+    peso da própria BB</strong>. Sem ajuda, ela percorre uns 35 metros e cai.</p>
+
+    <p>A solução mecânica é o <strong>hop-up</strong>: uma borracha instalada no topo do início do
+    cano, que raspa a parte de cima da BB na passagem. O atrito imprime um giro para trás —
+    <strong>backspin</strong>. Uma esfera girando dentro de um fluido gera uma força perpendicular
+    ao seu movimento, o <strong>efeito Magnus</strong>, e é essa força que sustenta a BB no ar por
+    mais tempo.</p>
+
+    <p>Regular o hop-up é regular <em>o quanto</em> a borracha encosta na BB, ou seja, quanto
+    backspin ela ganha. Pouco demais e a bala despenca cedo. Demais e ela sobe, perde velocidade e
+    vira uma curva imprevisível. Existe um ponto ideal, e o objetivo do simulador é justamente
+    tornar esse ponto visível.</p>
+
+    <figure>
+      <div class="chart">
+        <svg viewBox="0 0 1060 330" role="img" aria-label="Trajetórias da BB para diferentes regulagens de hop-up">
+          <g transform="translate(48,18)">
+            <line class="grid-line" x1="0" y1="173.3" x2="1000" y2="173.3"/>
+            <line class="grid-line" x1="0" y1="86.7" x2="1000" y2="86.7"/>
+            <line class="grid-line" x1="0" y1="0" x2="1000" y2="0"/>
+            <line class="grid-line" x1="100" y1="0" x2="100" y2="260"/>
+            <line class="grid-line" x1="200" y1="0" x2="200" y2="260"/>
+            <line class="grid-line" x1="300" y1="0" x2="300" y2="260"/>
+            <line class="grid-line" x1="400" y1="0" x2="400" y2="260"/>
+            <line class="grid-line" x1="500" y1="0" x2="500" y2="260"/>
+            <line class="grid-line" x1="600" y1="0" x2="600" y2="260"/>
+            <line class="grid-line" x1="700" y1="0" x2="700" y2="260"/>
+            <line class="grid-line" x1="800" y1="0" x2="800" y2="260"/>
+            <line class="grid-line" x1="900" y1="0" x2="900" y2="260"/>
+            <line class="grid-line" x1="1000" y1="0" x2="1000" y2="260"/>
+            <line class="axis-line" x1="0" y1="260" x2="1000" y2="260"/>
+            <line class="axis-line" x1="0" y1="0" x2="0" y2="260"/>
+
+            <text class="tick" x="-10" y="264" text-anchor="end">0</text>
+            <text class="tick" x="-10" y="177" text-anchor="end">5</text>
+            <text class="tick" x="-10" y="90" text-anchor="end">10</text>
+            <text class="tick" x="-10" y="4" text-anchor="end">15</text>
+            <text class="tick" x="100" y="280" text-anchor="middle">10</text>
+            <text class="tick" x="200" y="280" text-anchor="middle">20</text>
+            <text class="tick" x="300" y="280" text-anchor="middle">30</text>
+            <text class="tick" x="400" y="280" text-anchor="middle">40</text>
+            <text class="tick" x="500" y="280" text-anchor="middle">50</text>
+            <text class="tick" x="600" y="280" text-anchor="middle">60</text>
+            <text class="tick" x="700" y="280" text-anchor="middle">70</text>
+            <text class="tick" x="800" y="280" text-anchor="middle">80</text>
+            <text class="tick" x="900" y="280" text-anchor="middle">90</text>
+            <text class="tick" x="1000" y="280" text-anchor="middle">100</text>
+            <text class="axis-name" x="-38" y="-6">altura (m)</text>
+            <text class="axis-name" x="1000" y="296" text-anchor="end">distância (m)</text>
+
+            <polyline class="t-faint" style="stroke:var(--muted)" points="0.0,235.2 6.0,235.2 12.5,235.2 18.8,235.2 24.9,235.2 31.4,235.2 37.8,235.2 44.0,235.2 50.0,235.2 56.4,235.2 62.6,235.2 68.7,235.2 75.0,235.3 81.2,235.3 87.3,235.3 93.6,235.3 99.8,235.3 105.8,235.4 112.0,235.4 118.1,235.4 124.5,235.4 130.6,235.5 136.6,235.5 142.8,235.5 148.9,235.6 155.1,235.6 161.2,235.7 167.4,235.8 173.5,235.8 179.8,235.9 185.8,236.0 192.0,236.1 198.1,236.2 204.3,236.3 210.3,236.4 216.4,236.5 222.6,236.6 228.7,236.8 234.9,236.9 240.9,237.1 247.0,237.3 253.1,237.5 259.2,237.7 265.2,237.9 271.4,238.1 277.5,238.4 283.6,238.7 289.6,239.0 295.7,239.3 301.9,239.7 308.0,240.0 314.0,240.4 320.1,240.9 326.1,241.3 332.2,241.8 338.3,242.3 344.3,242.9 350.4,243.5 356.5,244.1 362.5,244.8 368.6,245.5 374.6,246.3 380.7,247.1 386.7,248.0 392.8,248.9 398.9,249.9 405.0,251.0 411.0,252.1 417.0,253.3 423.1,254.5 429.1,255.9 435.1,257.3 441.2,258.8 445.7,260.0"/>
+            <polyline class="t-faint" style="stroke:var(--muted)" points="0.0,235.2 6.0,235.2 12.5,235.2 18.8,235.2 24.9,235.1 31.4,235.1 37.8,235.0 44.0,235.0 50.0,234.9 56.4,234.8 62.6,234.7 68.7,234.6 75.0,234.4 81.2,234.3 87.3,234.1 93.6,234.0 99.8,233.8 105.8,233.6 112.0,233.4 118.1,233.1 124.4,232.9 130.6,232.6 136.6,232.3 142.8,232.0 148.9,231.7 155.1,231.4 161.2,231.0 167.4,230.6 173.5,230.2 179.7,229.8 185.8,229.4 192.0,228.9 198.0,228.4 204.2,227.9 210.2,227.4 216.3,226.8 222.5,226.3 228.6,225.7 234.7,225.0 240.9,224.3 247.0,223.7 253.1,223.0 259.3,222.2 265.3,221.4 271.4,220.6 277.5,219.8 283.7,218.9 289.7,218.0 295.8,217.1 301.8,216.1 307.9,215.1 314.0,214.1 320.2,213.0 326.3,211.9 332.4,210.8 338.5,209.6 344.6,208.3 350.7,207.1 356.8,205.8 362.8,204.4 368.9,203.1 374.9,201.7 381.0,200.2 387.0,198.7 393.1,197.1 399.2,195.5 405.2,193.9 411.3,192.2 417.4,190.5 423.5,188.7 429.5,186.9 435.5,185.1 441.6,183.1 447.7,181.2 453.7,179.2 459.7,177.2 465.7,175.1 471.7,173.0 477.8,170.8 483.8,168.6 489.8,166.4 495.9,164.1 501.9,161.9 507.9,159.5 513.9,157.2 520.0,154.8 526.0,152.4 532.0,150.0 538.1,147.6 544.1,145.2 550.1,142.8 556.1,140.5 562.2,138.1 568.2,135.8 574.2,133.6 580.3,131.5 586.3,129.4 592.3,127.5 598.4,125.8 604.4,124.2 610.4,122.9 616.4,121.8 622.4,121.0 628.4,120.5 634.5,120.3 640.5,120.6 646.5,121.3 652.5,122.4 658.5,124.0 664.5,126.0 670.6,128.5 676.6,131.4 682.6,134.7 688.6,138.4 694.6,142.4 700.7,146.7 706.7,151.3 712.7,156.1 718.7,161.2 724.7,166.5 730.8,171.8 736.8,177.4 742.8,183.0 748.8,188.7 754.8,194.5 760.9,200.4 766.9,206.3 772.9,212.3 778.9,218.3 785.0,224.3 791.0,230.3 797.0,236.3 803.0,242.3 809.1,248.4 815.1,254.4 820.7,260.0"/>
+            <polyline class="t-line" style="stroke:var(--blue)" points="0.0,235.2 6.0,235.2 12.5,235.2 18.8,235.2 24.9,235.2 31.4,235.3 37.8,235.3 44.0,235.3 50.0,235.4 56.4,235.4 62.6,235.5 68.7,235.5 75.0,235.6 81.2,235.7 87.3,235.8 93.6,235.9 99.8,236.0 105.8,236.1 112.0,236.2 118.1,236.3 124.5,236.5 130.6,236.6 136.6,236.8 142.8,236.9 148.9,237.1 155.1,237.3 161.2,237.6 167.4,237.8 173.5,238.1 179.7,238.3 185.8,238.6 192.0,238.9 198.1,239.3 204.3,239.6 210.3,240.0 216.4,240.4 222.6,240.8 228.7,241.2 234.9,241.7 240.9,242.2 247.0,242.7 253.1,243.3 259.1,243.8 265.2,244.5 271.3,245.1 277.5,245.8 283.5,246.6 289.6,247.3 295.7,248.2 301.8,249.0 308.0,250.0 314.0,250.9 320.0,251.9 326.0,253.0 332.1,254.2 338.1,255.3 344.2,256.6 350.3,257.9 356.3,259.3 359.1,260.0"/>
+            <polyline class="t-line" style="stroke:var(--green)" points="0.0,235.2 6.0,235.2 12.5,235.2 18.8,235.2 24.9,235.2 31.4,235.1 37.8,235.1 44.0,235.1 50.0,235.1 56.4,235.0 62.6,235.0 68.7,234.9 75.0,234.8 81.2,234.8 87.3,234.7 93.6,234.6 99.8,234.6 105.8,234.5 112.0,234.4 118.1,234.3 124.5,234.2 130.6,234.0 136.6,233.9 142.8,233.8 148.9,233.7 155.1,233.5 161.2,233.4 167.4,233.2 173.5,233.0 179.7,232.9 185.8,232.7 192.0,232.5 198.1,232.3 204.2,232.1 210.3,231.9 216.4,231.7 222.6,231.4 228.7,231.2 234.8,231.0 240.8,230.7 246.9,230.5 253.1,230.2 259.1,230.0 265.1,229.7 271.3,229.4 277.4,229.1 283.4,228.8 289.5,228.5 295.6,228.2 301.7,227.9 307.9,227.6 314.0,227.3 320.0,227.0 326.1,226.7 332.1,226.4 338.1,226.0 344.2,225.7 350.2,225.4 356.3,225.1 362.3,224.8 368.4,224.4 374.4,224.1 380.5,223.8 386.6,223.5 392.7,223.2 398.7,223.0 404.7,222.7 410.8,222.4 416.9,222.2 422.9,222.0 429.0,221.8 435.0,221.6 441.1,221.5 447.1,221.3 453.2,221.2 459.3,221.2 465.3,221.2 471.4,221.2 477.4,221.3 483.5,221.4 489.5,221.6 495.5,221.8 501.5,222.1 507.6,222.5 513.6,222.9 519.7,223.4 525.8,224.1 531.8,224.8 537.9,225.6 544.0,226.5 550.0,227.5 556.1,228.7 562.1,230.0 568.2,231.4 574.2,233.0 580.2,234.7 586.2,236.6 592.3,238.7 598.3,240.9 604.3,243.3 610.3,246.0 616.3,248.8 622.4,251.9 628.4,255.1 634.4,258.6 636.7,260.0"/>
+            <polyline class="t-line" style="stroke:var(--crimson)" points="0.0,235.2 6.0,235.2 12.5,235.2 18.8,235.2 24.9,235.1 31.4,235.1 37.8,235.0 44.0,234.9 50.0,234.8 56.4,234.7 62.6,234.5 68.7,234.4 75.0,234.2 81.2,234.0 87.3,233.8 93.6,233.6 99.8,233.4 105.8,233.1 112.0,232.9 118.1,232.6 124.4,232.2 130.6,231.9 136.6,231.5 142.8,231.1 148.8,230.7 155.1,230.3 161.1,229.8 167.4,229.4 173.4,228.9 179.7,228.3 185.7,227.7 191.9,227.1 198.0,226.5 204.1,225.8 210.1,225.2 216.2,224.4 222.4,223.7 228.5,222.9 234.6,222.1 240.8,221.2 246.9,220.3 253.0,219.3 259.1,218.3 265.2,217.3 271.2,216.3 277.3,215.1 283.5,214.0 289.7,212.7 295.7,211.5 301.7,210.2 307.8,208.9 313.8,207.5 319.9,206.0 326.0,204.5 332.1,203.0 338.1,201.4 344.2,199.7 350.2,197.9 356.2,196.2 362.4,194.3 368.4,192.3 374.5,190.4 380.5,188.3 386.6,186.2 392.6,184.0 398.7,181.7 404.7,179.3 410.8,176.9 416.9,174.4 422.9,171.8 428.9,169.1 435.0,166.3 441.0,163.5 447.0,160.5 453.0,157.5 459.1,154.4 465.1,151.1 471.1,147.8 477.2,144.3 483.2,140.7 489.3,137.1 495.3,133.3 501.3,129.4 507.3,125.4 513.3,121.3 519.3,117.1 525.4,112.7 531.4,108.2 537.4,103.7 543.4,98.9 549.5,94.1 555.5,89.2 561.5,84.2 567.5,79.1 573.6,74.0 579.6,68.9 585.6,64.0 591.6,59.3 597.6,55.1 603.6,51.8 609.6,49.7 615.6,49.3 621.6,50.8 627.7,54.0 633.7,58.4 639.7,63.8 645.7,69.6 651.7,75.7 657.7,82.0 663.7,88.3 669.7,94.6 675.7,100.9 681.8,107.1 687.8,113.3 693.8,119.3 699.8,125.3 705.8,131.1 711.9,136.8 717.9,142.4 723.9,147.9 729.9,153.3 735.9,158.6 741.9,163.7 747.9,168.8 754.0,173.8 760.0,178.7 766.0,183.5 772.0,188.2 778.0,192.7 784.0,197.2 790.1,201.7 796.1,206.0 802.1,210.3 808.1,214.5 814.2,218.6 820.2,222.6 826.2,226.6 832.2,230.5 838.2,234.3 844.2,238.1 850.3,241.9 856.3,245.5 862.3,249.1 868.3,252.7 874.3,256.1 880.3,259.6 881.1,260.0"/>
+
+            <text class="curve-label" style="fill:var(--blue)" x="368" y="252">1%</text>
+            <text class="curve-label" style="fill:var(--green)" x="652" y="252">55%</text>
+            <text class="curve-label" style="fill:var(--crimson)" x="530" y="42">100%</text>
+          </g>
+        </svg>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--blue)"></i>1% &mdash; pouco hop, 35,9 m</span>
+          <span><i class="swatch" style="background:var(--green)"></i>55% &mdash; ideal, 63,7 m</span>
+          <span><i class="swatch" style="background:var(--crimson)"></i>100% &mdash; hop excessivo, 88,1 m</span>
+          <span><i class="swatch" style="background:var(--muted);opacity:.5"></i>25% e 85%</span>
+        </div>
+      </div>
+      <figcaption>Trajetórias reais do simulador, integradas numericamente com passo de 0,5 ms.
+      Cano nivelado a 0°, boca a 1,43 m do chão. Repare que o eixo vertical está muito mais ampliado
+      que o horizontal: a curva de 100% sobe 12 m ao longo de 88 m.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 2 ============ -->
+  <section id="s2">
+    <span class="sec-num">Seção 02</span>
+    <h2>Da energia à velocidade &mdash; e por que essa ordem importa</h2>
+
+    <p>O enunciado da atividade dá a <em>energia</em> de saída (1,49 J), não a velocidade. Isso não
+    é um capricho: é como o mundo real funciona. Uma arma de airsoft tem uma mola e um pistão que
+    entregam aproximadamente a <strong>mesma energia</strong> a cada disparo, independente da munição
+    usada. O que muda com a munição é a velocidade.</p>
+
+    <div class="formula">
+      <p class="eq">E = ½ · m · v²   →   v₀ = √(2E / m)</p>
+      <p class="eq">v₀ = √(2 × 1,49 / 0,0002) = 122,07 m/s = 400,5 fps</p>
+      <p class="note">Os 400,5 fps confirmam o valor que o enunciado cita (400 fps para BBs de 0,2 g)
+      — é essa a verificação que se pede para fazer pelo Console.</p>
+    </div>
+
+    <p>A consequência de projeto é direta: <strong>a velocidade nunca é escrita à mão no código.</strong>
+    Ela é calculada, e a massa é lida do Rigidbody do próprio prefab da BB. Trocar a munição de
+    0,20 g para 0,25 g no prefab recalcula a velocidade sozinho, sem tocar em uma linha de código.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Munição</th><th>v₀</th><th>fps</th><th>Alcance a 55% de hop</th></tr></thead>
+        <tbody>
+          <tr class="mark"><td>0,20 g</td><td>122,1 m/s</td><td>400</td><td>63,6 m</td></tr>
+          <tr><td>0,25 g</td><td>109,2 m/s</td><td>358</td><td>62,6 m</td></tr>
+          <tr><td>0,30 g</td><td>99,7 m/s</td><td>327</td><td>59,7 m</td></tr>
+          <tr><td>0,40 g</td><td>86,3 m/s</td><td>283</td><td>52,4 m</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Repare no resultado interessante: a BB de 0,25 g sai <strong>13 m/s mais devagar</strong> e mesmo
+    assim perde só 1 metro de alcance. Ela tem mais inércia, então o arrasto tem mais trabalho para
+    freá-la. É exatamente por isso que jogadores de airsoft usam BBs pesadas para tiros longos.</p>
+  </section>
+
+  <!-- ============ 3 ============ -->
+  <section id="s3">
+    <span class="sec-num">Seção 03</span>
+    <h2>O arrasto domina tudo</h2>
+
+    <p>Esta é a força mais importante do problema, e a mais fácil de subestimar.</p>
+
+    <div class="formula">
+      <p class="eq">F_arrasto = ½ · ρ · C_d · A · v²</p>
+      <p class="where">ρ   = 1,225 kg/m³   densidade do ar ao nível do mar
+C_d = 0,47          coeficiente de arrasto de uma esfera lisa
+A   = π r² = 2,827 × 10⁻⁵ m²   secção transversal (r = 3 mm)</p>
+      <p class="note">Aplicada sempre na direção <em>oposta</em> ao movimento.</p>
+    </div>
+
+    <p>Colocando os números da saída do cano: <strong>0,121 N</strong>. O peso da BB é 0,00196 N.
+    A força que freia é <strong>62 vezes o peso</strong>, produzindo uma desaceleração de 606 m/s²
+    — mais de 60 g.</p>
+
+    <h3>Por que quadrático e não linear</h3>
+    <p>Existem dois regimes de arrasto. Em velocidades muito baixas, domina a viscosidade e a força
+    é proporcional a <code>v</code>. Em velocidades altas, domina a pressão dinâmica e a força é
+    proporcional a <code>v²</code>. O separador é o número de Reynolds; aqui ele fica em torno de
+    <strong>40.000</strong>, muito dentro do regime quadrático.</p>
+
+    <div class="trap">
+      <p class="trap-tag">Armadilha do motor</p>
+      <p>O Rigidbody do Unity tem um campo chamado <code>Linear Damping</code> (antigo <code>Drag</code>)
+      que parece resolver isso. <strong>Ele é linear</strong> — modela F ∝ v, o regime errado. Usá-lo
+      daria uma trajetória qualitativamente diferente da real.</p>
+      <p>Por isso, no projeto, <code>Linear Damping = 0</code> e o arrasto quadrático é aplicado à mão
+      no <code>FixedUpdate</code>. É esse o significado de "mecanismo de redução de velocidade o mais
+      realista possível" no enunciado.</p>
+    </div>
+
+    <h3>Um resultado elegante que vale citar</h3>
+    <p>Ignorando por um instante a gravidade e a sustentação, dá para resolver o arrasto
+    analiticamente. Dividindo a aceleração pela velocidade, o tempo desaparece e sobra uma equação
+    em função da <em>distância</em>:</p>
+
+    <div class="formula">
+      <p class="eq">v(x) = v₀ · e^(−k·x)     com  k = ρ·C_d·A / 2m = 0,0407 m⁻¹</p>
+      <p class="note">A cada <strong>24,6 metros</strong> percorridos, a BB perde 63% da velocidade que
+      tinha. Aos 30 m ela já caiu de 122 m/s para cerca de 36 m/s.</p>
+    </div>
+
+    <p>Esse decaimento exponencial é a razão de fundo pela qual airsoft tem alcance curto — e o
+    argumento mais forte para mostrar que a simulação está modelando física de verdade, não uma
+    parábola decorativa.</p>
+  </section>
+
+  <!-- ============ 4 ============ -->
+  <section id="s4">
+    <span class="sec-num">Seção 04</span>
+    <h2>Efeito Magnus: como o giro vira sustentação</h2>
+
+    <p>Uma esfera girando arrasta consigo uma fina camada de ar. Com backspin, o topo da bola gira
+    <em>contra</em> o fluxo de ar relativo e a base gira <em>a favor</em>. O ar passa mais rápido
+    embaixo e mais devagar em cima.</p>
+
+    <p>Pelo princípio de Bernoulli, mais velocidade significa menos pressão. Forma-se então uma
+    diferença de pressão entre a face de baixo e a de cima, e a resultante empurra a BB
+    <strong>para cima</strong>. É a mesma física que faz uma bola de futebol fazer curva e uma bola
+    de tênis com topspin mergulhar.</p>
+
+    <figure>
+      <div class="chart">
+        <svg viewBox="0 0 620 210" role="img" aria-label="Diagrama do efeito Magnus numa BB com backspin">
+          <g transform="translate(20,10)">
+            <path d="M0,26 H560" stroke="var(--rule)" stroke-width="1.2" fill="none" opacity=".7"/>
+            <path d="M0,46 H560" stroke="var(--rule)" stroke-width="1.2" fill="none" opacity=".7"/>
+            <path d="M0,150 H560" stroke="var(--rule)" stroke-width="1.2" fill="none" opacity=".7"/>
+            <path d="M0,170 H560" stroke="var(--rule)" stroke-width="1.2" fill="none" opacity=".7"/>
+
+            <circle cx="270" cy="98" r="42" fill="var(--surface-2)" stroke="var(--ink-2)" stroke-width="1.6"/>
+            <path d="M248,74 A30,30 0 1,1 244,116" fill="none" stroke="var(--accent)" stroke-width="2.6"/>
+            <path d="M244,116 l-2,-11 l10,4 z" fill="var(--accent)"/>
+            <text class="curve-label" style="fill:var(--accent)" x="270" y="103" text-anchor="middle">backspin</text>
+
+            <line x1="270" y1="56" x2="270" y2="6" stroke="var(--green)" stroke-width="3"/>
+            <path d="M270,2 l-6,11 l12,0 z" fill="var(--green)"/>
+            <text class="curve-label" style="fill:var(--green)" x="284" y="26">sustentação</text>
+
+            <line x1="312" y1="98" x2="400" y2="98" stroke="var(--crimson)" stroke-width="3"/>
+            <path d="M405,98 l-11,-6 l0,12 z" fill="var(--crimson)"/>
+            <text class="curve-label" style="fill:var(--crimson)" x="412" y="94">velocidade</text>
+
+            <line x1="205" y1="98" x2="140" y2="98" stroke="var(--muted)" stroke-width="2"/>
+            <path d="M135,98 l11,-6 l0,12 z" fill="var(--muted)"/>
+            <text class="curve-label" style="fill:var(--muted)" x="130" y="94" text-anchor="end">fluxo relativo</text>
+
+            <text class="tick" x="0" y="18">ar mais lento &rarr; pressão maior</text>
+            <text class="tick" x="0" y="186">ar mais rápido &rarr; pressão menor</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>O backspin quebra a simetria do escoamento. A assimetria de pressão entre topo e
+      base é a força de sustentação.</figcaption>
+    </figure>
+
+    <h3>As duas fórmulas do projeto</h3>
+    <p>O enunciado pede uma versão simplificada e oferece a completa como item opcional. O simulador
+    implementa as duas, alternáveis pela tecla <code>M</code>.</p>
+
+    <div class="formula">
+      <p class="eq">Simplificada:  F = √v · BackspinDrag</p>
+      <p class="eq">Completa:      F = ½ · ρ · A · C_L · v² ,  com  C_L = k · (ω·r / v)</p>
+      <p class="eq">              →  F = ½ · ρ · A · k · ω · r · v</p>
+      <p class="note">A simplificada trata o hop-up como uma constante abstrata. A completa parte da
+      velocidade angular real do giro (ω, em rad/s) e da razão de spin, e leva em conta a secção
+      transversal da esfera explicitamente.</p>
+    </div>
+
+    <p>A diferença prática está em <em>como cada uma decai</em>. A simplificada cai com √v; a completa
+    cai linearmente com v. Como a BB perde velocidade muito rápido, a completa perde sustentação mais
+    depressa e produz trajetórias mais conservadoras. Mostrar as duas lado a lado é uma demonstração
+    barata de que o modelo foi entendido, e não só copiado.</p>
+  </section>
+
+  <!-- ============ 5 ============ -->
+  <section id="s5">
+    <span class="sec-num">Seção 05</span>
+    <h2>A direção perpendicular: o detalhe que faz tudo funcionar</h2>
+
+    <p class="lede">Se houver uma única coisa para saber explicar com segurança nesta atividade, é
+    esta.</p>
+
+    <p>O enunciado diz para aplicar a sustentação "na direção perpendicular à direção da BB". É
+    tentador simplificar isso para <code>Vector3.up</code> — afinal, a força sustenta, e sustentar é
+    para cima. <strong>Essa simplificação quebra a simulação.</strong></p>
+
+    <p>Com uma força fixa para cima, a BB de hop-up alto subiria indefinidamente em linha reta,
+    porque nada faria a força parar de empurrar na vertical. A curva vermelha do gráfico lá em cima
+    — que sobe, curva e volta a descer — só existe porque a força <em>acompanha a orientação da
+    bala</em>.</p>
+
+    <p>A conta certa usa dois produtos vetoriais. Primeiro, o eixo do giro: perpendicular tanto à
+    velocidade quanto à vertical. Depois, a força: perpendicular ao eixo do giro e à velocidade.</p>
+
+    <div class="formula">
+      <p class="eq">eixo  = velocidade × Vector3.up</p>
+      <p class="eq">força = eixo × velocidade</p>
+      <p class="note">Verificando para uma BB indo em +Z: eixo = (0,0,1) × (0,1,0) = (−1,0,0);
+      força = (−1,0,0) × (0,0,1) = (0,1,0). Para cima, como esperado. Mas quando a bala inclina, a
+      força inclina junto — e é isso que estabiliza a trajetória.</p>
+    </div>
+
+    <div class="trap">
+      <p class="trap-tag">Caso degenerado</p>
+      <p>Se a BB for disparada exatamente na vertical, a velocidade fica paralela ao
+      <code>Vector3.up</code> e o produto vetorial resulta em zero. Normalizar um vetor nulo produz
+      <code>NaN</code>, que contamina a posição e faz o objeto desaparecer da cena para sempre.</p>
+      <p>O código detecta esse caso e troca o vetor de referência. É o tipo de detalhe que separa
+      código que funciona na demonstração de código que funciona sempre.</p>
+    </div>
+  </section>
+
+  <!-- ============ 6 ============ -->
+  <section id="s6">
+    <span class="sec-num">Seção 06</span>
+    <h2>Isso virando código</h2>
+
+    <p>Toda a física vive em um único método, o <code>FixedUpdate</code> do script da BB. A estrutura
+    é sempre a mesma: ler a velocidade atual, calcular cada força, aplicar com
+    <code>AddForce</code>. A gravidade fica por conta do próprio Unity.</p>
+
+    <h3>Por que FixedUpdate e não Update</h3>
+    <p><code>Update</code> roda uma vez por quadro renderizado, e a taxa de quadros varia conforme a
+    máquina e a cena. Se a física fosse calculada lá, <strong>a trajetória mudaria conforme o
+    desempenho do computador</strong> — o mesmo tiro chegaria a distâncias diferentes em máquinas
+    diferentes. <code>FixedUpdate</code> roda em intervalos fixos, desacoplado da renderização. É o
+    único lugar onde física pode ser calculada de forma reprodutível.</p>
+
+    <h3>Por que ForceMode.Force</h3>
+    <p>Existem quatro modos em <code>AddForce</code>. <code>Force</code> interpreta o vetor como uma
+    força em newtons aplicada continuamente durante o intervalo, exatamente a semântica das nossas
+    equações. <code>Impulse</code> aplicaria como uma pancada instantânea, e <code>VelocityChange</code>
+    ignoraria a massa — o que destruiria toda a comparação entre BBs de 0,20 g e 0,25 g.</p>
+  </section>
+
+  <!-- ============ 7 ============ -->
+  <section id="s7">
+    <span class="sec-num">Seção 07</span>
+    <h2>As armadilhas do motor</h2>
+
+    <p class="lede">Esta é a parte que justifica o nome da disciplina. As equações estão certas em
+    qualquer lugar; o que muda de motor para motor é o que ele faz com elas.</p>
+
+    <h3>Efeito túnel</h3>
+    <p>O Unity calcula física em passos discretos, 50 vezes por segundo por padrão. A 122 m/s, a BB
+    percorre <strong>2,44 metros por passo</strong> — ela teleporta. O chão tem espessura zero. Num
+    passo a bala está acima, no seguinte está abaixo, e o motor nunca viu colisão nenhuma.</p>
+
+    <p>São duas defesas combinadas. Primeiro, <code>Collision Detection = Continuous Dynamic</code>,
+    que varre o caminho inteiro entre dois passos em vez de só comparar posições. Segundo, reduzir o
+    <code>Fixed Timestep</code> de 0,02 s para 0,005 s, o que derruba o deslocamento por passo para
+    0,61 m.</p>
+
+    <h3>Erro de integração</h3>
+    <p>Reduzir o passo não serve só contra o tunelamento. O Unity integra por Euler semi-implícito, um
+    método de primeira ordem cujo erro cresce com o tamanho do passo. Como nossas forças mudam a cada
+    instante, isso importa:</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Hop-up</th><th>Referência (0,5 ms)</th><th>0,005 s (usado)</th><th>0,02 s (padrão)</th></tr></thead>
+        <tbody>
+          <tr><td>1%</td><td>35,7 m</td><td>35,1 m</td><td>33,2 m</td></tr>
+          <tr class="mark"><td>55%</td><td>63,6 m</td><td>62,8 m</td><td>60,3 m</td></tr>
+          <tr><td>100%</td><td>88,0 m</td><td>87,0 m</td><td>83,7 m</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>O passo padrão erraria cerca de 5%. Com 0,005 s o erro cai para 1%. Numa atividade em que o
+    objetivo é comparar trajetórias, 5% é a diferença entre uma conclusão certa e uma errada.</p>
+
+    <div class="trap">
+      <p class="trap-tag">Escala e tolerância</p>
+      <p>O <code>Default Contact Offset</code> do Unity vem em 0,01 m — a margem em que dois objetos
+      são considerados em contato. <strong>Isso é maior que o raio inteiro da BB</strong>, que tem
+      0,003 m. Baixá-lo para 0,001 mantém a tolerância coerente com a escala do objeto simulado.</p>
+      <p>Na mesma linha: 1 unidade do Unity é 1 metro, e a física assume isso. Modelar a BB fora de
+      escala invalidaria massa, gravidade e arrasto de uma vez só.</p>
+    </div>
+  </section>
+
+  <!-- ============ 8 ============ -->
+  <section id="s8">
+    <span class="sec-num">Seção 08</span>
+    <h2>Arquitetura da cena</h2>
+
+    <h3>O prefab como molde</h3>
+    <p>A BB não existe na cena. Ela existe como <strong>prefab</strong> — um arquivo com todos os
+    componentes já configurados — e é instanciada em tempo de execução a cada clique. É isso que o
+    enunciado quer dizer com "modelo pré-definido reutilizável", e a vantagem prática aparece nos
+    experimentos: mudar a massa no prefab reconfigura todas as BBs futuras de uma vez.</p>
+
+    <h3>A hierarquia da primeira pessoa</h3>
+    <p>A rotação é dividida em dois níveis, que é o padrão em jogos de tiro:</p>
+    <ul>
+      <li>o <strong>Player</strong> gira na horizontal — vira o corpo inteiro, arma junto;</li>
+      <li>a <strong>Câmera</strong> gira na vertical — só a cabeça sobe e desce;</li>
+      <li>o <strong>WeaponHolder</strong> é filho da câmera e desloca a arma para a mão direita;</li>
+      <li>o <strong>Muzzle</strong>, na boca do cano, é filho do holder com rotação zerada.</li>
+    </ul>
+
+    <p>Essa última linha é a elegante: como o Muzzle é neto da câmera e não tem rotação própria, o
+    <code>forward</code> dele é sempre exatamente a direção do olhar. A arma aponta para onde você
+    mira <strong>sem uma única linha de código</strong> — a hierarquia resolve.</p>
+
+    <div class="trap">
+      <p class="trap-tag">Duas decisões que economizaram bugs</p>
+      <p><strong>O jogador não tem collider.</strong> Sem colisor no atirador, a BB nunca colide com
+      quem disparou. O terreno é plano, então nada se perde.</p>
+      <p><strong>O plano de corte próximo da câmera vai a 0,01 m.</strong> O padrão de 0,3 m cortaria
+      a arma segurada na mão — o bug clássico de <em>viewmodel</em> em FPS.</p>
+    </div>
+
+    <h3>Por que o hop-up é a roda do mouse</h3>
+    <p>Em primeira pessoa o cursor fica travado e invisível, senão o mouse-look não funciona. Um
+    slider clicável na tela seria inalcançável. A regulagem foi então para a roda do mouse — o que,
+    convenientemente, imita o gesto de girar o dial do hop-up numa arma real. A barra na tela é um
+    medidor, não um controle.</p>
+  </section>
+
+  <!-- ============ 9 ============ -->
+  <section id="s9">
+    <span class="sec-num">Seção 09</span>
+    <h2>Calibração e validação</h2>
+
+    <p>O mapeamento entre a porcentagem do hop-up e a constante <code>BackspinDrag</code> não foi
+    escolhido por tentativa e erro dentro do Unity. A trajetória foi integrada numericamente fora do
+    motor, com passo de 0,5 ms, e o valor máximo foi escolhido para reproduzir as três curvas do
+    material da disciplina.</p>
+
+    <div class="formula">
+      <p class="eq">BackspinDrag = maxBackspinDrag × (hop% / 100),  maxBackspinDrag = 6,5 × 10⁻⁴</p>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Hop-up</th><th>BackspinDrag</th><th>Sustentação / peso</th><th>Alcance</th><th>Tempo de voo</th><th>Ápice</th></tr></thead>
+        <tbody>
+          <tr><td>1%</td><td>6,5e−6</td><td>0,04</td><td>35,7 m</td><td>0,66 s</td><td>1,40 m</td></tr>
+          <tr><td>25%</td><td>1,6e−4</td><td>0,92</td><td>44,4 m</td><td>1,02 s</td><td>1,40 m</td></tr>
+          <tr><td>40%</td><td>2,6e−4</td><td>1,46</td><td>52,9 m</td><td>1,53 s</td><td>1,48 m</td></tr>
+          <tr class="mark"><td>55%</td><td>3,6e−4</td><td>2,01</td><td>63,6 m</td><td>2,46 s</td><td>2,21 m</td></tr>
+          <tr><td>70%</td><td>4,6e−4</td><td>2,56</td><td>74,0 m</td><td>3,85 s</td><td>4,30 m</td></tr>
+          <tr><td>85%</td><td>5,5e−4</td><td>3,11</td><td>82,0 m</td><td>5,47 s</td><td>8,03 m</td></tr>
+          <tr><td>100%</td><td>6,5e−4</td><td>3,66</td><td>88,0 m</td><td>6,98 s</td><td>12,13 m</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>A coluna "sustentação / peso" é a mais informativa para explicar o comportamento. Enquanto a
+    razão é menor que 1, a gravidade vence e a BB só cai — a trajetória fica mais rasa, mas o ápice
+    continua sendo o próprio cano. Passando de 1, a BB começa a <em>subir</em> depois de sair, e o
+    ápice descola. É essa transição que separa "pouco hop" de "hop ideal".</p>
+
+    <h3>A validação que fecha o argumento</h3>
+    <p>Depois de rodar, os alcances medidos dentro do Unity foram comparados com a integração
+    numérica independente, corrigindo pelo ângulo de elevação real do cano no momento do teste:</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Hop-up</th><th>Medido no jogo</th><th>Simulação independente</th><th>Erro</th></tr></thead>
+        <tbody>
+          <tr><td>1%</td><td>42,2 m</td><td>43,0 m</td><td>1,9%</td></tr>
+          <tr><td>25%</td><td>51,0 m</td><td>51,8 m</td><td>1,5%</td></tr>
+          <tr><td>55%</td><td>67,2 m</td><td>67,9 m</td><td>1,0%</td></tr>
+          <tr><td>100%</td><td>90,2 m</td><td>91,3 m</td><td>1,2%</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Concordância dentro de 2% entre duas implementações independentes da mesma física. O resíduo
+    é o erro de integração previsto para o passo de 0,005 s — ou seja, não é erro escondido, é erro
+    conhecido e quantificado.</p>
+  </section>
+
+  <!-- ============ 10 ============ -->
+  <section id="s10">
+    <span class="sec-num">Seção 10</span>
+    <h2>Defesa oral</h2>
+
+    <p class="lede">As perguntas que provavelmente virão, e as respostas curtas.</p>
+
+    <div class="qa">
+      <details>
+        <summary>Por que você não usou o Drag do Rigidbody?</summary>
+        <div class="answer"><p>Porque o <code>Linear Damping</code> do Unity modela arrasto linear
+        (F ∝ v), e o arrasto de uma esfera nessa faixa de velocidade é quadrático (F ∝ v²). O número
+        de Reynolds aqui é da ordem de 40.000, bem dentro do regime dominado por pressão. Usar o campo
+        do motor daria uma curva qualitativamente errada.</p></div>
+      </details>
+
+      <details>
+        <summary>Por que a força de sustentação não é simplesmente para cima?</summary>
+        <div class="answer"><p>Porque ela é gerada pelo giro em relação ao fluxo de ar, então é
+        perpendicular à <em>velocidade instantânea</em>, não à vertical do mundo. Se fosse fixa para
+        cima, a trajetória de hop-up alto subiria para sempre em linha reta. É a rotação da força
+        junto com a bala que faz a curva estabilizar e voltar a descer.</p></div>
+      </details>
+
+      <details>
+        <summary>Por que mexer no Fixed Timestep?</summary>
+        <div class="answer"><p>Por dois motivos. No padrão de 0,02 s, a BB anda 2,44 m por passo de
+        física e atravessa o chão sem registrar colisão. E o erro do integrador de Euler semi-implícito
+        chegaria a 5% no alcance. Com 0,005 s são 0,61 m por passo e o erro cai para 1%.</p></div>
+      </details>
+
+      <details>
+        <summary>De onde saiu o valor de 122 m/s?</summary>
+        <div class="answer"><p>Não foi digitado: é calculado de <code>v₀ = √(2E/m)</code> com os
+        1,49 J do enunciado e a massa lida do Rigidbody do prefab. Dá 122,07 m/s, ou 400,5 fps, que
+        confere com os 400 fps citados. Trocar a massa do prefab recalcula tudo sozinho.</p></div>
+      </details>
+
+      <details>
+        <summary>Por que a BB de 0,25 g é melhor se sai mais devagar?</summary>
+        <div class="answer"><p>Porque a energia é a mesma mas a inércia é maior. A desaceleração por
+        arrasto é F/m, então uma massa maior resiste melhor à mesma força de frenagem. Ela sai 13 m/s
+        mais devagar e perde só 1 metro de alcance — e chega ao alvo com mais velocidade
+        remanescente.</p></div>
+      </details>
+
+      <details>
+        <summary>Como você sabe que a simulação está certa?</summary>
+        <div class="answer"><p>Integrei a mesma física fora do Unity, com passo 40 vezes menor, e
+        comparei com os alcances medidos dentro do jogo. As duas implementações independentes
+        concordam dentro de 2%, e o resíduo é exatamente o erro de integração previsto para o passo
+        usado.</p></div>
+      </details>
+
+      <details>
+        <summary>Qual a diferença entre os dois modelos de Magnus?</summary>
+        <div class="answer"><p>O simplificado usa <code>√v · BackspinDrag</code>, tratando o hop-up
+        como constante abstrata. O completo parte da razão de spin (ω·r/v) e da secção transversal da
+        esfera, e a força acaba proporcional a <code>v</code>. Como decai mais rápido conforme a bala
+        perde velocidade, produz trajetórias mais conservadoras. A tecla <code>M</code> alterna entre
+        eles em tempo de execução.</p></div>
+      </details>
+
+      <details>
+        <summary>Por que o hop-up é regulado pela roda do mouse e não por um slider?</summary>
+        <div class="answer"><p>Porque em primeira pessoa o cursor fica travado para o mouse-look
+        funcionar, então um slider clicável seria inalcançável. A roda resolve isso e ainda imita o
+        gesto de girar o dial do hop-up numa arma real. A barra na tela é um medidor, não um
+        controle.</p></div>
+      </details>
+
+      <details>
+        <summary>O que acontece se atirar exatamente para cima?</summary>
+        <div class="answer"><p>O produto vetorial entre velocidade e vertical dá zero, e normalizar
+        um vetor nulo geraria <code>NaN</code>, que contaminaria a posição da BB permanentemente. O
+        código detecta esse caso degenerado e troca o vetor de referência.</p></div>
+      </details>
+    </div>
+  </section>
+
+  </main>
+
+  <footer class="footer">
+    <span>Simulador de hop-up · Unity 6000.5.8f1 · URP 17.5</span>
+    <span>BB 6 mm · 0,20 g · 1,49 J</span>
+  </footer>
+</div>

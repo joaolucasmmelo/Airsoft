@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------
+# Unity — pastas geradas pelo editor. NUNCA versionar.
+# A Library sozinha tem ~2 GB e é 100% reconstruível a partir de
+# Assets/ + ProjectSettings/ + Packages/.
+# ---------------------------------------------------------------
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Arquivos de projeto/solução gerados automaticamente pelo Unity
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+ExportedObj/
+.consulo/
+
+# IDEs
+.vs/
+.vscode/
+/[Aa]ssets/Plugins/Editor/JetBrains*
+
+# Builds e pacotes
+*.apk
+*.aab
+*.app
+*.unitypackage
+
+# Relatórios de crash
+sysinfo.txt
+crashlytics-build.properties
+
+# Addressables empacotados
+/[Ss]treamingAssets/aa.meta
+/[Ss]treamingAssets/aa/*
+
+# Os .meta acompanham os assets e SÃO versionados
+!/[Aa]ssets/**/*.meta
+
+# Sistema
+.DS_Store
+Thumbs.db

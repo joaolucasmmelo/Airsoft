@@ -2,104 +2,96 @@ using UnityEngine;
 
 namespace Airsoft
 {
-    /// <summary>Dados de um acerto em alvo, publicados para a HUD.</summary>
-    public struct TargetHit
-    {
-        public string label;
-        public float nominalDistance;
-        public float offsetFromCenter;   // distância ao centro da placa, em metros
-        public string ring;
-        public int points;
-    }
-
     /// <summary>
-    /// Alvo de estande com anéis concêntricos.
-    ///
-    /// A detecção do acerto NÃO fica aqui: quem chama é a própria BB, no
-    /// <see cref="BBProjectile"/>, no instante da colisão. Fazer assim garante
-    /// ordem determinística (a BB já tem o ponto de contato em mãos) e evita
-    /// depender de qual OnCollisionEnter o Unity resolve primeiro.
+    /// Alvo do estande. Quem avisa o acerto é a BB (BBProjectile), no momento da colisão.
+    /// O alvo calcula os pontos pelo anel atingido, brilha amarelo, avisa o GameManager
+    /// e some quando o brilho acaba.
     /// </summary>
     public class Target : MonoBehaviour
     {
-        [Tooltip("Distância nominal do alvo em metros — só para o rótulo na HUD.")]
+        [Tooltip("Distância do alvo em metros. O GameManager usa para escolher alvos mais longe nas fases altas.")]
         public float nominalDistance = 10f;
 
         [Tooltip("Raio da placa em metros.")]
         public float plateRadius = 0.5f;
 
-        public float flashDuration = 0.45f;
-        public Color flashColor = new Color(1f, 0.85f, 0.3f);
+        [Header("Brilho ao ser acertado")]
+        public float duracaoDoBrilho = 0.4f;
+        public Color corDoBrilho = new Color(1f, 0.85f, 0.3f);
 
-        public static event System.Action<TargetHit> Hit;
-        public static int TotalHits { get; private set; }
-        public static int TotalPoints { get; private set; }
-
-        public static void ResetScore()
-        {
-            TotalHits = 0;
-            TotalPoints = 0;
-        }
-
-        Renderer[] parts;
-        MaterialPropertyBlock mpb;
-        float flashStart = -999f;
-
-        static readonly int EmissionId = Shader.PropertyToID("_EmissionColor");
+        Renderer[] partes;
+        MaterialPropertyBlock bloco;
+        bool brilhando = false;
+        float tempoDoBrilho = 0f;
 
         void Awake()
         {
-            parts = GetComponentsInChildren<Renderer>();
-            mpb = new MaterialPropertyBlock();
+            partes = GetComponentsInChildren<Renderer>();
+            bloco = new MaterialPropertyBlock();
         }
 
-        /// <summary>Chamado pela BB no impacto. Devolve em qual anel ela entrou.</summary>
-        public TargetHit RegisterHit(Vector3 worldPoint)
+        /// <summary>Chamado pelo GameManager para mostrar o alvo numa fase.</summary>
+        public void Mostrar()
         {
-            // O alvo é montado com o +Z local apontando para o atirador e a placa
-            // no plano XY local, então a distância ao centro é só a norma de (x, y).
-            Vector3 local = transform.InverseTransformPoint(worldPoint);
-            float offset = new Vector2(local.x, local.y).magnitude;
-            float f = plateRadius > 0f ? offset / plateRadius : 1f;
+            brilhando = false;
+            PintarBrilho(Color.black);
+            gameObject.SetActive(true);
+        }
 
-            string ring;
-            int points;
-            if (f <= 0.22f) { ring = "MOSCA!"; points = 10; }
-            else if (f <= 0.55f) { ring = "anel interno"; points = 5; }
-            else { ring = "anel externo"; points = 2; }
+        /// <summary>Chamado pela BB quando ela bate no alvo. Devolve o nome do alvo para o HUD.</summary>
+        public string RegisterHit(Vector3 pontoDoImpacto)
+        {
+            // Distância do impacto até o centro da placa
+            Vector3 local = transform.InverseTransformPoint(pontoDoImpacto);
+            float distanciaDoCentro = new Vector2(local.x, local.y).magnitude;
 
-            TotalHits++;
-            TotalPoints += points;
-            flashStart = Time.time;
+            // Pontos por anel: centro 10, meio 5, borda 2
+            int pontos;
+            if (distanciaDoCentro <= plateRadius * 0.22f)
+                pontos = 10;
+            else if (distanciaDoCentro <= plateRadius * 0.55f)
+                pontos = 5;
+            else
+                pontos = 2;
 
-            TargetHit hit = new TargetHit
-            {
-                label = $"alvo de {nominalDistance:0} m",
-                nominalDistance = nominalDistance,
-                offsetFromCenter = offset,
-                ring = ring,
-                points = points
-            };
+            // Começa a brilhar
+            brilhando = true;
+            tempoDoBrilho = 0f;
 
-            Hit?.Invoke(hit);
-            return hit;
+            if (GameManager.instance != null)
+                GameManager.instance.AlvoAcertado(this, pontos);
+
+            return "alvo de " + nominalDistance.ToString("0") + " m";
         }
 
         void Update()
         {
-            float age = Time.time - flashStart;
-            if (age > flashDuration + 0.1f) return;   // nada aceso, nada a fazer
+            if (!brilhando)
+                return;
 
-            // Termina em 0 (preto) e só então para de escrever, para a placa
-            // não ficar acesa para sempre.
-            float t = Mathf.Clamp01(1f - age / flashDuration);
-            Color emission = flashColor * (t * t * 4f);
+            tempoDoBrilho += Time.deltaTime;
+            float forca = 1f - tempoDoBrilho / duracaoDoBrilho;   // vai de 1 até 0
 
-            for (int i = 0; i < parts.Length; i++)
+            if (forca <= 0f)
             {
-                parts[i].GetPropertyBlock(mpb);
-                mpb.SetColor(EmissionId, emission);
-                parts[i].SetPropertyBlock(mpb);
+                // Brilho acabou: apaga e esconde o alvo
+                brilhando = false;
+                PintarBrilho(Color.black);
+                if (GameManager.instance != null)
+                    gameObject.SetActive(false);
+                return;
+            }
+
+            PintarBrilho(corDoBrilho * (forca * forca * 4f));
+        }
+
+        void PintarBrilho(Color cor)
+        {
+            foreach (Renderer parte in partes)
+            {
+                parte.GetPropertyBlock(bloco);
+                bloco.SetColor("_EmissionColor", cor);
+                parte.SetPropertyBlock(bloco);
             }
         }
     }

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -15,22 +14,40 @@ namespace Airsoft
     public class AirsoftHUD : MonoBehaviour
     {
         [Header("Referências")]
-        public AirsoftWeapon weapon;
+        public ArmasDoJogador armas;
         public PlayerController player;
-        public CameraToggle cameraToggle;
 
-        [Header("Opções")]
-        public int historySize = 8;
-        public bool showHelp = true;
+        // A arma que está na mão agora
+        AirsoftWeapon weapon
+        {
+            get { return armas != null ? armas.ArmaAtual : null; }
+        }
 
-        readonly List<ShotResult> history = new List<ShotResult>();
+        // Mensagem temporária no meio da tela (ex.: "SEM MUNIÇÃO")
+        static string mensagem = "";
+        static float mensagemAte = 0f;
+
+        /// <summary>Mostra um aviso no meio da tela por 2 segundos. Qualquer script pode chamar.</summary>
+        public static void Mensagem(string texto)
+        {
+            mensagem = texto;
+            mensagemAte = Time.time + 2f;
+        }
+
+
         ShotResult last;
         bool hasLast;
 
         // --- recursos de desenho, criados uma vez ---
         Texture2D texPanel, texBar, texFill, texLine;
-        GUIStyle sTitle, sLabel, sValue, sBig, sSmall, sHint;
+        GUIStyle sTitle, sLabel, sValue, sBig, sBigRight, sSmall, sSmallCenter, sSmallRight, sAviso;
         bool stylesReady;
+
+        /// <summary>Largura comum dos painéis. Todo o texto interno respeita Pad de cada lado.</summary>
+        const float PanelW = 368f;
+        const float Pad = 16f;
+        const float HopUpH = 128f;     // arma + munição + medidor de hop-up
+        const float LastShotH = 152f;  // título + distância + 3 linhas
 
         static readonly Color Neon = new Color(0.20f, 0.80f, 1f);
         static readonly Color Dim = new Color(0.65f, 0.75f, 0.85f);
@@ -40,42 +57,17 @@ namespace Airsoft
         void OnEnable() => BBProjectile.ShotResolved += OnShot;
         void OnDisable() => BBProjectile.ShotResolved -= OnShot;
 
-        void Update()
-        {
-            Keyboard kb = Keyboard.current;
-            if (kb == null) return;
-
-            if (kb.hKey.wasPressedThisFrame) showHelp = !showHelp;
-            if (kb.rKey.wasPressedThisFrame) ClearShots();
-        }
-
         void OnShot(ShotResult r)
         {
             last = r;
             hasLast = true;
-            history.Insert(0, r);
-            while (history.Count > historySize) history.RemoveAt(history.Count - 1);
 
             Debug.Log(r.landed
-                ? $"[Airsoft] Hop-up {r.hopUpPercent:0}%  |  BackspinDrag {r.backspinDrag:E3}  |  " +
-                  $"{r.hitLabel} a {r.distance:0.0} m" + (r.hitTarget ? $" ({r.ring}, +{r.points})" : "") +
-                  $"  |  voo {r.flightTime:0.00} s  |  ápice {r.apexHeight:0.00} m  |  " +
-                  $"impacto a {r.impactSpeed:0.0} m/s"
+                ? $"[Airsoft] Hop-up {r.hopUpPercent:0}%  |  BB {r.massKg * 1000f:0.00} g  |  BackspinDrag {r.backspinDrag:0}  |  " +
+                  $"{r.hitLabel} a {r.distance:0.0} m  |  voo {r.flightTime:0.00} s  |  " +
+                  $"ápice {r.apexHeight:0.00} m  |  impacto a {r.impactSpeed:0.0} m/s"
                 : $"[Airsoft] Hop-up {r.hopUpPercent:0}%  |  a BB NÃO tocou o solo em {r.flightTime:0.0} s " +
                   $"(hop-up excessivo). Já havia percorrido {r.distance:0.0} m.");
-        }
-
-        void ClearShots()
-        {
-            history.Clear();
-            hasLast = false;
-            Target.ResetScore();
-            foreach (ImpactMarker m in FindObjectsByType<ImpactMarker>(FindObjectsInactive.Exclude))
-                Destroy(m.gameObject);
-            foreach (TrailRenderer t in FindObjectsByType<TrailRenderer>(FindObjectsInactive.Exclude))
-                if (t.GetComponentInParent<BBProjectile>() == null) Destroy(t.gameObject);
-            foreach (BBProjectile b in FindObjectsByType<BBProjectile>(FindObjectsInactive.Exclude))
-                Destroy(b.gameObject);
         }
 
         // ------------------------------------------------------------------
@@ -93,16 +85,14 @@ namespace Airsoft
             float W = Screen.width / s;
             float H = Screen.height / s;
 
-            bool sideView = cameraToggle != null && cameraToggle.SideActive;
+            // Na tela ficam só a mira, o card da arma/hop-up e o último disparo (canto inferior esquerdo).
+            // Controles e dados das armas ficam nos quadros da parede do START.
+            float yHopUp = H - HopUpH - 16f;
 
-            if (!sideView) DrawCrosshair(W, H);
-            DrawWeaponPanel(16f, 16f);
-            DrawHopUpGauge(16f, H - 150f);
-            DrawLastShot(W, H);
-            DrawHistory(W - 366f, 16f);
-            DrawScore(W);
-            if (showHelp) DrawHelp(W - 366f, H - 232f);
-            if (sideView) DrawBadge(W, "MODO ANÁLISE (lateral) — V para voltar");
+            DrawCrosshair(W, H);
+            DrawHopUpGauge(16f, yHopUp);
+            DrawLastShot(16f, yHopUp - LastShotH - 12f);
+            DrawAvisos(W, H);
 
             GUI.matrix = old;
         }
@@ -118,74 +108,86 @@ namespace Airsoft
             GUI.DrawTexture(new Rect(cx - 1f, cy - 11f, 2f, 8f), texLine);
             GUI.DrawTexture(new Rect(cx - 1f, cy + 3f, 2f, 8f), texLine);
             GUI.color = Color.white;
-
-            // Ângulo de elevação: comparar hop-up só é justo com o cano nivelado.
-            float elev = weapon != null ? weapon.ElevationDeg : 0f;
-            bool level = Mathf.Abs(elev) < 0.35f;
-            GUI.color = level ? new Color(0.35f, 1f, 0.5f) : Warn;
-            GUI.Label(new Rect(cx - 110f, cy + 20f, 220f, 22f),
-                level ? "cano nivelado (0.0°)" : $"elevação {elev:+0.0;-0.0}°   —   F para nivelar",
-                sSmall);
-            GUI.color = Color.white;
         }
 
-        void DrawWeaponPanel(float x, float y)
+        void DrawAvisos(float W, float H)
         {
-            const float w = 356f, h = 196f;
-            Panel(new Rect(x, y, w, h));
+            float y = H * 0.5f + 40f;
 
-            float ix = x + 16f, iy = y + 12f;
-            GUI.Label(new Rect(ix, iy, w, 22f), "ARMA / PROJÉTIL", sTitle); iy += 26f;
-
-            if (weapon == null)
+            // Mensagem temporária
+            if (Time.time < mensagemAte)
             {
-                GUI.Label(new Rect(ix, iy, w, 22f), "sem referência de arma", sLabel);
-                return;
+                Rect r = new Rect(W * 0.5f - 220f, y, 440f, 34f);
+                Panel(r);
+                GUI.color = Warn;
+                GUI.Label(new Rect(r.x, r.y + 6f, r.width, 24f), mensagem, sAviso);
+                GUI.color = Color.white;
+                y += 42f;
             }
 
-            Row(ix, ref iy, w, "Energia de saída", $"{weapon.muzzleEnergyJoules:0.00} J");
-            Row(ix, ref iy, w, "Massa da BB", $"{weapon.BbMassKg * 1000f:0.##} g");
-            Row(ix, ref iy, w, "Raio da BB", "3.0 mm");
-            iy += 4f;
+            // Dica quando está perto de um carregador
+            if (armas == null)
+                return;
 
-            GUI.color = Neon;
-            GUI.Label(new Rect(ix, iy, w - 32f, 30f),
-                $"v₀  {weapon.MuzzleSpeed:0.0} m/s", sBig);
-            GUI.color = Dim;
-            GUI.Label(new Rect(ix + 186f, iy + 6f, w, 24f),
-                $"= {weapon.MuzzleSpeedFps:0} fps", sLabel);
-            GUI.color = Color.white;
-            iy += 32f;
-
-            GUI.color = Dim;
-            GUI.Label(new Rect(ix, iy, w - 32f, 20f), "v₀ = √(2E/m)", sSmall);
-            GUI.color = Color.white;
+            CarregadorNoChao perto = armas.CarregadorMaisPerto();
+            if (perto != null)
+            {
+                int tecla = armas.IndiceDaArmaDoTipo(perto.carregador.tipo) + 1;
+                string nome = armas.armas[tecla - 1].modelo;
+                Rect r = new Rect(W * 0.5f - 220f, y, 440f, 34f);
+                Panel(r);
+                GUI.Label(new Rect(r.x, r.y + 6f, r.width, 24f),
+                    "E  pegar carregador de " + nome + " (" + perto.carregador.quantidade + " balas)", sAviso);
+            }
         }
 
         void DrawHopUpGauge(float x, float y)
         {
-            const float w = 356f, h = 134f;
-            Panel(new Rect(x, y, w, h));
+            Panel(new Rect(x, y, PanelW, HopUpH));
 
-            float ix = x + 16f, iy = y + 12f;
-            GUI.Label(new Rect(ix, iy, w, 22f), "HOP-UP", sTitle);
+            float ix = x + Pad, iy = y + 12f;
+            float inner = PanelW - Pad * 2f;
 
             if (weapon == null) return;
 
+            // Linha 1: arma e massa da BB à esquerda, modo de tiro à direita
+            GUI.Label(new Rect(ix, iy, inner, 20f),
+                weapon.modelo.ToUpper() + "   ·   BB " + (weapon.BbMassKg * 1000f).ToString("0.00") + " g", sTitle);
+            GUI.color = weapon.automatico ? Gold : Neon;
+            GUI.Label(new Rect(ix, iy, inner, 20f), weapon.automatico ? "AUTO" : "SEMI", sValue);
+            GUI.color = Color.white;
+            iy += 22f;
+
+            // Linha 2: munição grande à esquerda, hop-up grande à direita
+            string municao;
+            if (weapon.carregador == null)
+                municao = "SEM CARREGADOR";
+            else if (weapon.municaoInfinita)
+                municao = "∞";
+            else
+                municao = weapon.carregador.quantidade + " / " + weapon.carregador.capacidade;
+
+            bool vazio = weapon.carregador == null || (!weapon.municaoInfinita && !weapon.carregador.TemBala());
+            GUI.color = vazio ? Warn : Color.white;
+            GUI.Label(new Rect(ix, iy, inner, 34f), municao, sBig);
+
             float pct = weapon.hopUpPercent;
             Color c = AirsoftWeapon.HopUpColor(pct);
-
+            GUI.color = Dim;
+            GUI.Label(new Rect(ix, iy + 12f, inner - 86f, 18f), "hop-up", sSmallRight);
             GUI.color = c;
-            GUI.Label(new Rect(ix + 180f, iy - 6f, 150f, 34f), $"{pct:0}%", sBig);
+            GUI.Label(new Rect(ix, iy, inner, 34f), pct.ToString("0") + "%", sBigRight);
             GUI.color = Color.white;
-            iy += 34f;
+            iy += 40f;
 
             // barra
-            Rect bar = new Rect(ix, iy, w - 32f, 16f);
+            Rect bar = new Rect(ix, iy, inner, 16f);
             GUI.color = new Color(1f, 1f, 1f, 0.10f);
             GUI.DrawTexture(bar, texBar);
 
-            // faixa "ideal" (calibrada por simulação: ~50-60% deixa a trajetória plana)
+            // Faixa "ideal": a regulagem de referência para o alvo do meio do estande.
+            // Nesta calibragem a trajetória é rasa na faixa inteira (ápice de 2,9 m no
+            // pior caso), então a marca é uma referência, não um limite.
             GUI.color = new Color(0.3f, 1f, 0.45f, 0.22f);
             GUI.DrawTexture(new Rect(bar.x + bar.width * 0.50f, bar.y, bar.width * 0.10f, bar.height), texBar);
 
@@ -195,154 +197,45 @@ namespace Airsoft
             iy += 22f;
 
             GUI.color = Dim;
-            GUI.Label(new Rect(ix, iy, 120f, 18f), "pouco", sSmall);
-            GUI.Label(new Rect(ix + bar.width * 0.5f - 24f, iy, 90f, 18f), "ideal", sSmall);
-            GUI.Label(new Rect(ix + bar.width - 46f, iy, 60f, 18f), "muito", sSmall);
-            GUI.color = Color.white;
-            iy += 22f;
-
-            string modelo = weapon.magnusModel == MagnusModel.Simplificado ? "simplificado" : "completo";
-            string val = weapon.magnusModel == MagnusModel.Simplificado
-                ? $"BackspinDrag {weapon.BackspinDrag:E2}"
-                : $"ω {weapon.SpinRate:0} rad/s ({weapon.SpinRate * 9.5493f:0} rpm)";
-            GUI.color = Dim;
-            GUI.Label(new Rect(ix, iy, w - 32f, 20f), $"Magnus {modelo} · {val}", sSmall);
+            GUI.Label(new Rect(ix, iy, 100f, 18f), "pouco", sSmall);
+            GUI.Label(new Rect(ix, iy, inner, 18f), "ideal", sSmallCenter);
+            GUI.Label(new Rect(ix, iy, inner, 18f), "muito", sSmallRight);
             GUI.color = Color.white;
         }
 
-        void DrawLastShot(float W, float H)
+        void DrawLastShot(float x, float y)
         {
             if (!hasLast) return;
 
-            const float w = 420f, h = 92f;
-            Rect r = new Rect(W * 0.5f - w * 0.5f, H - h - 20f, w, h);
-            Panel(r);
+            Panel(new Rect(x, y, PanelW, LastShotH));
 
-            float ix = r.x + 18f, iy = r.y + 10f;
+            float ix = x + Pad, iy = y + 12f;
             string titulo = !last.landed ? "ÚLTIMO DISPARO — não aterrissou"
                           : last.hitTarget ? $"ACERTOU O {last.hitLabel.ToUpper()}"
                           : "ÚLTIMO DISPARO";
-            GUI.Label(new Rect(ix, iy, w, 20f), titulo, sTitle);
-            iy += 22f;
+            GUI.Label(new Rect(ix, iy, PanelW - Pad * 2f, 20f), titulo, sTitle);
+            iy += 24f;
 
             GUI.color = !last.landed ? Warn : last.hitTarget ? Gold : Neon;
-            GUI.Label(new Rect(ix, iy, 260f, 36f), $"{last.distance:0.0} m", sBig);
+            GUI.Label(new Rect(ix, iy, PanelW - Pad * 2f, 34f), $"{last.distance:0.0} m", sBig);
             GUI.color = Color.white;
+            iy += 38f;
 
-            GUI.color = Dim;
-            if (last.hitTarget)
-            {
-                GUI.color = Gold;
-                GUI.Label(new Rect(ix + 150f, iy + 2f, 280f, 20f),
-                    $"{last.ring}   +{last.points} pontos", sSmall);
-                GUI.color = Dim;
-                GUI.Label(new Rect(ix + 150f, iy + 20f, 280f, 20f),
-                    $"hop-up {last.hopUpPercent:0}%   ·   voo {last.flightTime:0.00} s", sSmall);
-            }
-            else
-            {
-                GUI.Label(new Rect(ix + 150f, iy + 2f, 280f, 20f),
-                    $"hop-up {last.hopUpPercent:0}%   ·   voo {last.flightTime:0.00} s", sSmall);
-                GUI.Label(new Rect(ix + 150f, iy + 20f, 280f, 20f),
-                    $"ápice {last.apexHeight:0.00} m   ·   impacto {last.impactSpeed:0.0} m/s", sSmall);
-            }
-            GUI.color = Color.white;
-        }
-
-        void DrawHistory(float x, float y)
-        {
-            if (history.Count == 0) return;
-
-            float h = 66f + history.Count * 20f;
-            Panel(new Rect(x, y, 350f, h));
-
-            float ix = x + 16f, iy = y + 12f;
-            GUI.Label(new Rect(ix, iy, 320f, 20f), "HISTÓRICO", sTitle); iy += 24f;
-
-            GUI.color = Dim;
-            GUI.Label(new Rect(ix, iy - 2f, 90f, 18f), "hop-up", sSmall);
-            GUI.Label(new Rect(ix + 92f, iy - 2f, 100f, 18f), "distância", sSmall);
-            GUI.Label(new Rect(ix + 202f, iy - 2f, 110f, 18f), "ápice", sSmall);
-            GUI.color = Color.white;
-            iy += 18f;
-
-            for (int i = 0; i < history.Count; i++)
-            {
-                ShotResult r = history[i];
-                GUI.color = i == 0 ? Color.white : new Color(1f, 1f, 1f, 0.55f);
-                GUI.Label(new Rect(ix, iy, 90f, 18f), $"{r.hopUpPercent:0}%", sSmall);
-                GUI.color = i == 0 ? AirsoftWeapon.HopUpColor(r.hopUpPercent)
-                                   : new Color(1f, 1f, 1f, 0.55f);
-                GUI.Label(new Rect(ix + 92f, iy, 100f, 18f),
-                    r.landed ? $"{r.distance:0.0} m" : "—", sSmall);
-                GUI.color = i == 0 ? Color.white : new Color(1f, 1f, 1f, 0.45f);
-                GUI.Label(new Rect(ix + 202f, iy, 110f, 18f), $"{r.apexHeight:0.00} m", sSmall);
-                iy += 20f;
-            }
-            GUI.color = Color.white;
-        }
-
-        void DrawHelp(float x, float y)
-        {
-            Panel(new Rect(x, y, 350f, 216f));
-            float ix = x + 16f, iy = y + 12f;
-            GUI.Label(new Rect(ix, iy, 320f, 20f), "CONTROLES  (H oculta)", sTitle); iy += 26f;
-
-            string[,] rows =
-            {
-                { "Mouse",              "olhar" },
-                { "W A S D / Shift",    "andar / correr" },
-                { "Botão esquerdo",     "atirar" },
-                { "Roda do mouse",      "regular o hop-up" },
-                { "↑ ↓",                "hop-up fino (1%)" },
-                { "F",                  "nivelar o cano" },
-                { "M",                  "alternar modelo de Magnus" },
-                { "V",                  "câmera lateral (análise)" },
-                { "R",                  "limpar rastros e marcadores" },
-                { "Esc",                "soltar o cursor" },
-            };
-
-            for (int i = 0; i < rows.GetLength(0); i++)
-            {
-                GUI.color = Neon;
-                GUI.Label(new Rect(ix, iy, 150f, 18f), rows[i, 0], sSmall);
-                GUI.color = Dim;
-                GUI.Label(new Rect(ix + 150f, iy, 190f, 18f), rows[i, 1], sSmall);
-                iy += 18f;
-            }
-            GUI.color = Color.white;
-        }
-
-        void DrawScore(float W)
-        {
-            if (Target.TotalHits == 0) return;
-
-            Rect r = new Rect(W * 0.5f - 150f, 16f, 300f, 34f);
-            Panel(r);
-            GUI.color = Gold;
-            GUI.Label(new Rect(r.x, r.y + 8f, r.width, 22f),
-                $"ALVOS  {Target.TotalHits} acertos  ·  {Target.TotalPoints} pontos", sHint);
-            GUI.color = Color.white;
-        }
-
-        void DrawBadge(float W, string text)
-        {
-            float y = Target.TotalHits > 0 ? 58f : 18f;   // não sobrepor o placar
-            Rect r = new Rect(W * 0.5f - 190f, y, 380f, 30f);
-            Panel(r);
-            GUI.color = Warn;
-            GUI.Label(new Rect(r.x, r.y + 6f, r.width, 20f), text, sHint);
-            GUI.color = Color.white;
+            Row(ix, ref iy, "hop-up", $"{last.hopUpPercent:0}%");
+            Row(ix, ref iy, "tempo de voo", $"{last.flightTime:0.00} s");
+            Row(ix, ref iy, "ápice", $"{last.apexHeight:0.00} m");
         }
 
         // ------------------------------------------------------------------
 
-        void Row(float x, ref float y, float w, string label, string value)
+        /// <summary>Linha "rótulo à esquerda / valor à direita" dentro da largura útil do painel.</summary>
+        void Row(float x, ref float y, string label, string value)
         {
+            float inner = PanelW - Pad * 2f;
             GUI.color = Dim;
-            GUI.Label(new Rect(x, y, 200f, 20f), label, sLabel);
+            GUI.Label(new Rect(x, y, inner * 0.62f, 20f), label, sLabel);
             GUI.color = Color.white;
-            GUI.Label(new Rect(x, y, w - 48f, 20f), value, sValue);
+            GUI.Label(new Rect(x, y, inner, 20f), value, sValue);
             y += 20f;
         }
 
@@ -371,9 +264,12 @@ namespace Airsoft
             { fontSize = 14, alignment = TextAnchor.UpperRight, normal = { textColor = Color.white } };
             sBig = new GUIStyle(GUI.skin.label)
             { fontSize = 27, fontStyle = FontStyle.Bold, normal = { textColor = Color.white } };
+            sBigRight = new GUIStyle(sBig) { alignment = TextAnchor.UpperRight };
             sSmall = new GUIStyle(GUI.skin.label) { fontSize = 12, normal = { textColor = Color.white } };
-            sHint = new GUIStyle(GUI.skin.label)
-            { fontSize = 13, alignment = TextAnchor.UpperCenter, normal = { textColor = Color.white } };
+            sSmallCenter = new GUIStyle(sSmall) { alignment = TextAnchor.UpperCenter };
+            sAviso = new GUIStyle(GUI.skin.label)
+            { fontSize = 16, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter, normal = { textColor = Color.white } };
+            sSmallRight = new GUIStyle(sSmall) { alignment = TextAnchor.UpperRight };
 
             stylesReady = true;
         }

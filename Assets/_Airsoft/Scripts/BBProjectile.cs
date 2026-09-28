@@ -2,22 +2,11 @@ using UnityEngine;
 
 namespace Airsoft
 {
-    /// <summary>Qual formulação do efeito Magnus a BB usa.</summary>
-    public enum MagnusModel
-    {
-        /// <summary>F = sqrt(v) * BackspinDrag  (a fórmula simplificada pedida no enunciado)</summary>
-        Simplificado = 0,
-        /// <summary>F = 1/2 * rho * A * Cl * v^2, com Cl proporcional à razão de spin (versão completa)</summary>
-        Completo = 1
-    }
-
     /// <summary>Resultado de um disparo, publicado quando a BB toca o solo.</summary>
     public struct ShotResult
     {
         public float hopUpPercent;
         public float backspinDrag;
-        public float spinRate;
-        public MagnusModel model;
         public float muzzleSpeed;
         public float massKg;
         public float distance;     // distância HORIZONTAL do cano até o impacto
@@ -29,8 +18,6 @@ namespace Airsoft
         public bool landed;        // false = expirou o tempo de vida sem tocar o solo
         public bool hitTarget;     // true = acertou um alvo, não o solo
         public string hitLabel;    // "solo", "parede" ou "alvo de 30 m"
-        public string ring;        // anel acertado, quando foi alvo
-        public int points;
     }
 
     /// <summary>
@@ -48,9 +35,8 @@ namespace Airsoft
     ///      e substituí-lo por este é o que o enunciado chama de "o mais realista possível".
     ///
     ///   2) SUSTENTAÇÃO (efeito Magnus gerado pelo backspin do hop-up):
-    ///        Simplificado: F = sqrt(v) * BackspinDrag
-    ///        Completo:     F = 1/2 * rho * A * Cl * v^2 , com Cl = k * (w*r/v)
-    ///                        = 1/2 * rho * A * k * w * r * v
+    ///        F = 1/2 * rho * A * Cl * v^2 , com Cl = k * S  e  S = w*r/v (razão de spin)
+    ///          = 1/2 * rho * A * k * w * r * v
     ///      Aplicada PERPENDICULARMENTE à velocidade (não simplesmente "para cima"):
     ///      é isso que faz a trajetória de muito hop-up curvar e depois estabilizar,
     ///      em vez de subir para sempre em linha reta.
@@ -74,16 +60,10 @@ namespace Airsoft
         public bool enableDrag = true;
 
         [Header("Hop-up / Efeito Magnus")]
-        public MagnusModel magnusModel = MagnusModel.Simplificado;
-
-        [Tooltip("Constante do modelo simplificado. Representa quanto de hop-up foi aplicado. " +
-                 "Definida pela arma no momento do disparo.")]
+        [Tooltip("Velocidade angular do backspin em rad/s. Definida pela arma no disparo.")]
         public float backspinDrag = 0f;
 
-        [Tooltip("Velocidade angular do backspin em rad/s (usada só no modelo Completo).")]
-        public float spinRateRadPerSec = 0f;
-
-        [Tooltip("Coeficiente de sustentação por unidade de razão de spin (modelo Completo).")]
+        [Tooltip("Coeficiente de sustentação por unidade de razão de spin.")]
         public float magnusLiftFactor = 0.25f;
 
         [Tooltip("Meia-vida do backspin em segundos: o giro perde metade da força a cada X s. " +
@@ -100,6 +80,12 @@ namespace Airsoft
         [HideInInspector] public float elevationDeg;
 
         static Transform container;
+
+        /// <summary>Quantas BBs estão voando agora. O GameManager espera todas caírem antes de dar fim por falta de bala.</summary>
+        public static int voando = 0;
+
+        void OnEnable() { voando++; }
+        void OnDisable() { voando--; }
 
         /// <summary>
         /// Pai comum de tudo que é criado durante os disparos (BBs, rastros soltos e
@@ -219,15 +205,9 @@ namespace Airsoft
             if (spinHalfLife > 0f)
                 decay = Mathf.Pow(0.5f, (Time.time - bornTime) / spinHalfLife);
 
-            if (magnusModel == MagnusModel.Simplificado)
-            {
-                // F = sqrt(v) * BackspinDrag
-                return Mathf.Sqrt(speed) * backspinDrag * decay;
-            }
-
             // F = 1/2 * rho * A * Cl * v^2   com   Cl = k * S   e   S = w*r/v
             //  => F = 1/2 * rho * A * k * w * r * v
-            float spin = spinRateRadPerSec * decay;
+            float spin = backspinDrag * decay;
             return 0.5f * airDensity * crossSection * magnusLiftFactor * spin * radius * speed;
         }
 
@@ -241,6 +221,12 @@ namespace Airsoft
             Target target = collision.collider != null
                 ? collision.collider.GetComponentInParent<Target>()
                 : null;
+
+            // Acertou o botão START?
+            StartButton botao = collision.collider != null
+                ? collision.collider.GetComponentInParent<StartButton>()
+                : null;
+            if (botao != null) botao.Acertado();
 
             Resolve(p, true, target, collision.gameObject.name);
         }
@@ -256,23 +242,13 @@ namespace Airsoft
             flat.y = 0f;
 
             string label = surface != null && surface.StartsWith("Parede") ? "parede" : "solo";
-            string ringHit = null;
-            int pts = 0;
 
-            if (target != null)
-            {
-                TargetHit th = target.RegisterHit(point);
-                label = th.label;
-                ringHit = th.ring;
-                pts = th.points;
-            }
+            if (target != null) label = target.RegisterHit(point);
 
             ShotResolved?.Invoke(new ShotResult
             {
                 hopUpPercent = hopUpPercent,
                 backspinDrag = backspinDrag,
-                spinRate = spinRateRadPerSec,
-                model = magnusModel,
                 muzzleSpeed = muzzleSpeed,
                 massKg = rb != null ? rb.mass : 0f,
                 distance = flat.magnitude,
@@ -283,9 +259,7 @@ namespace Airsoft
                 impactPoint = point,
                 landed = landed,
                 hitTarget = target != null,
-                hitLabel = label,
-                ring = ringHit,
-                points = pts
+                hitLabel = label
             });
 
             if (landed && target == null && impactMarkerPrefab != null)

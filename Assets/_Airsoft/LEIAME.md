@@ -21,12 +21,11 @@ com a AK47 encaixada, HUD) e pode ser executado quantas vezes quiser.
 | Mouse | olhar |
 | W A S D / Shift | andar / correr |
 | Botão esquerdo | atirar |
+| 1 / 2 / 3 | pistola / AK / sniper |
+| F | modo SEMI / AUTO |
+| E | pegar carregador do chão (só serve na arma do mesmo tipo) |
 | **Roda do mouse** | **regular o hop-up** |
 | ↑ ↓ | hop-up fino (1% por toque) |
-| F | nivelar o cano (elevação 0°) |
-| M | alternar modelo de Magnus (simplificado ↔ completo) |
-| V | câmera lateral (modo análise) |
-| R | limpar rastros e marcadores |
 | H | mostrar/ocultar ajuda |
 | Esc | soltar o cursor |
 
@@ -41,17 +40,17 @@ A cena montada é um estande de tiro:
 - **Chão de grama** — textura gerada proceduralmente pelo próprio script de Editor
   (`T_Grama.png`, 512×512). Usa ruído de Perlin sem costura em três oitavas mais um
   granulado por texel, e é repetida 200 vezes (um ladrilho a cada 3 m).
-- **Marcas de distância** a cada 10 m nas laterais do corredor; as de 50 em 50 m são
-  mais altas e verdes.
-- **8 alvos** com anéis concêntricos, a 10, 20, 30, 40, 50, 60, 75 e 90 m, alternando
-  os lados. O corredor central fica livre de propósito, para dar para testar as
-  trajetórias longas sem esbarrar em alvo.
-- **Paredes**: fundo a 132 m (12 m de altura, contém até os tiros de hop-up
-  excessivo), lateral esquerda e uma atrás do atirador. O lado direito fica aberto
-  porque é de lá que a câmera de análise enxerga as trajetórias de perfil.
+- **Alvos** com anéis concêntricos a 10, 20, 30, 40, 50, 60 e 65 m, alternando os
+  lados. O de 65 m é o mais distante de propósito: com o cano nivelado e o hop-up
+  no máximo a BB cai em ~60 m, então ele exige mirar um pouco acima. O corredor
+  central fica livre para testar as trajetórias sem esbarrar em alvo.
+- **Paredes** fechando o estande: fundo (12 m de altura, contém até os tiros de
+  hop-up excessivo), laterais, uma atrás do atirador e um parapeito baixo na linha
+  de tiro. Todas têm `BoxCollider`, e o jogador tem uma cápsula
+  (`CharacterController`), então não dá mais para atravessar e sair do mapa.
 
-Acertar um alvo vale pontos conforme o anel: **MOSCA** (10), **anel interno** (5),
-**anel externo** (2). A placa pisca no impacto e a HUD mostra o placar. `R` zera tudo.
+Não há pontuação: a placa pisca no impacto e o painel **ÚLTIMO DISPARO** mostra os
+dados daquele tiro (distância, hop-up, tempo de voo, ápice e velocidade no impacto).
 
 ---
 
@@ -105,23 +104,14 @@ já com 36 m/s.
 
 ### 2.3 Sustentação (efeito Magnus)
 
-**Modelo simplificado** (o pedido no enunciado):
-
-```
-F_sustentação = √v · BackspinDrag
-```
-
-**Modelo completo** (o item opcional — tecla `M` alterna em jogo):
-
 ```
 F = ½ · ρ · A · Cl · v²      com   Cl = k · S   e   S = ωr/v
   = ½ · ρ · A · k · ω · r · v
 ```
 
-onde `S` é a razão de spin e `ω` a velocidade angular do backspin. Este modelo
-considera a secção transversal da esfera explicitamente e decai **linearmente**
-com a velocidade, enquanto o simplificado decai com √v — por isso o completo
-produz trajetórias mais conservadoras.
+onde `S` é a razão de spin e `ω` a velocidade angular do backspin. O modelo
+considera a secção transversal da esfera explicitamente e a força decai
+**linearmente** com a velocidade, acompanhando a perda de energia da BB.
 
 **A direção é o detalhe que mais gera bug.** A força é perpendicular à
 velocidade, não simplesmente "para cima":
@@ -140,18 +130,26 @@ cima — que é exatamente o que produz a curva vermelha "muito hop-up" do enunc
 
 ## 3. Calibração do hop-up
 
-O mapeamento `hop-up % → BackspinDrag` não foi chutado: foi calibrado integrando
-numericamente a trajetória (RK explícito, dt = 0,5 ms) e escolhendo o
-`maxBackspinDrag` que reproduz as três curvas do enunciado.
+O mapeamento `hop-up % → ω` não foi chutado: foi calibrado integrando
+numericamente a trajetória (dt = 0,5 ms) e escolhendo o `maxBackspinDrag` que mantém
+a BB voando **raso** em toda a faixa de regulagem.
 
-`BackspinDrag = maxBackspinDrag × (hop% / 100)`, com **maxBackspinDrag = 6,5×10⁻⁴**.
+`BackspinDrag = maxBackspinDrag × (hop% / 100)`, com **maxBackspinDrag = 4 500** (é o ω da fórmula, em rad/s) (≈ 43 000 rpm).
 
-| hop-up | BackspinDrag | sustentação / peso (na saída) | alcance | tempo de voo | ápice |
+| hop-up | ω (rad/s) | sustentação / peso (na saída) | alcance | tempo de voo | ápice |
 |---|---|---|---|---|---|
-| 1 % | 6,5e-6 | 0,04 | 35,7 m | 0,66 s | 1,40 m |
-| 25 % | 1,6e-4 | 0,92 | 44,4 m | 1,02 s | 1,40 m |
-| 40 % | 2,6e-4 | 1,46 | 52,9 m | 1,53 s | 1,48 m |
-| **55 %** | **3,6e-4** | **2,01** | **63,6 m** | **2,46 s** | **2,21 m** |
+| 1 % | 45 | 0,04 | 35,8 m | 0,67 s | 1,43 m |
+| 25 % | 1 125 | 0,91 | 41,1 m | 0,87 s | 1,43 m |
+| 40 % | 1 800 | 1,45 | 44,9 m | 1,05 s | 1,45 m |
+| **55 %** | **2 475** | **2,00** | **49,1 m** | **1,28 s** | **1,57 m** |
+| 75 % | 3 375 | 2,73 | 54,6 m | 1,66 s | 1,98 m |
+| 100 % | 4 500 | 3,64 | 61,0 m | 2,22 s | 2,94 m |
+
+O ponto desta calibragem é que a BB **não sobe**: mesmo com o hop-up no talo o
+ápice fica em 2,94 m, pouco mais de um metro acima da linha do cano. O hop-up
+estica o alcance de 36 para 61 m mantendo a trajetória rasa, que é o
+comportamento coerente com uma BB de verdade. Uma constante maior devolveria o
+voo em arco — a BB subindo dezenas de metros antes de cair.
 | 70 % | 4,6e-4 | 2,56 | 74,0 m | 3,85 s | 4,30 m |
 | 85 % | 5,5e-4 | 3,11 | 82,0 m | 5,47 s | 8,03 m |
 | 100 % | 6,5e-4 | 3,66 | 88,0 m | 6,98 s | 12,13 m |
@@ -163,8 +161,8 @@ Isso reproduz as três curvas do documento da atividade:
 - **muito hop-up** (≈85–100 %): a BB sobe muito, perde velocidade e cai longe
 
 Referência da elevação: todos os números acima são com o **cano nivelado a 0°**.
-A HUD avisa quando o cano não está nivelado — 1° de elevação já muda o alcance o
-bastante para invalidar a comparação. Use `F` para nivelar antes de comparar.
+1° de elevação já muda o alcance o bastante para invalidar a comparação, então mire
+na linha do horizonte antes de comparar regulagens.
 
 ### Erro de integração
 
@@ -173,9 +171,9 @@ simulado contra uma referência de alta precisão (dt = 0,5 ms):
 
 | hop-up | referência | dt = 0,005 (usado) | dt = 0,02 (padrão do Unity) |
 |---|---|---|---|
-| 1 % | 35,7 m | 35,1 m | 33,2 m |
-| 55 % | 63,6 m | 62,8 m | 60,3 m |
-| 100 % | 88,0 m | 87,0 m | 83,7 m |
+| 1 % | 35,8 m | 35,4 m | 33,7 m |
+| 55 % | 49,1 m | 48,4 m | 46,5 m |
+| 100 % | 61,0 m | 60,3 m | 58,0 m |
 
 O padrão do Unity erraria ~5 %. Com 0,005 s o erro cai para ~1 %. Além disso, a
 122 m/s a BB anda **2,44 m por passo** no timestep padrão — ela atravessaria o
@@ -199,21 +197,20 @@ dois passos em vez de só comparar as posições.
 | Velocidade derivada da energia de 1.49 J | `AirsoftWeapon.MuzzleSpeed` |
 | Verificação da velocidade no Console | `AirsoftWeapon.Start()` e no 1º disparo |
 | Script para a BB | `Scripts/BBProjectile.cs` |
-| Variável `BackspinDrag` | `BBProjectile.backspinDrag` |
+| BackspinDrag (ω da fórmula) | `BBProjectile.backspinDrag` |
 | Força de sustentação a cada frame | `BBProjectile.FixedUpdate()` |
-| `Mathf.Sqrt(velocidade) * BackspinDrag` | `BBProjectile.CurrentLift()` |
+| `½·ρ·A·k·ω·r·v` | `BBProjectile.CurrentLift()` |
 | Força perpendicular à direção da BB | `BBProjectile.LiftDirection()` |
-| Fórmula completa (opcional) | `MagnusModel.Completo` — tecla `M` |
-| Experimentar BackspinDrag e massa | roda do mouse / massa no prefab |
+| Experimentar hop-up e massa | roda do mouse / massa no prefab |
 | Distância do impacto | `BBProjectile.Resolve()` + HUD |
 
 ---
 
 ## 5. Experimentos sugeridos para o relatório
 
-1. **Efeito do hop-up.** Nivele o cano (`F`), atire em 1 %, 25 %, 55 %, 85 % e
-   100 %. A HUD registra as distâncias no histórico. Aperte `V` para ver as
-   curvas de lado.
+1. **Efeito do hop-up.** Com o cano na linha do horizonte, atire em 1 %, 25 %,
+   55 %, 75 % e 100 %. O painel **ÚLTIMO DISPARO** mostra a distância, o ápice e o
+   tempo de voo de cada tiro.
 2. **Efeito da massa.** Abra `Prefabs/BB.prefab`, mude `Rigidbody → Mass` para
    `0.00025` (0,25 g) e repita. A velocidade inicial cai (mesma energia, mais
    massa), mas a BB mantém melhor a velocidade — mais inércia contra o arrasto.
@@ -223,12 +220,19 @@ dois passos em vez de só comparar as posições.
    **1520 m** (o `v₀²/g` do lançamento balístico ideal), com arrasto apenas
    **58,5 m** — uma redução de 26×. É a demonstração mais direta de que, neste
    problema, o arrasto domina tudo.
-4. **Simplificado × completo.** Tecla `M`. Compare o formato das curvas: o
-   modelo completo decai com `v`, o simplificado com `√v`.
-5. **Alcance útil na prática.** Com o cano nivelado, tente acertar o alvo de 50 m
+4. **Alcance útil na prática.** Com o cano nivelado, tente acertar o alvo de 50 m
    variando só o hop-up. Com pouco hop a BB passa por baixo; com hop demais passa
    por cima. Existe uma faixa estreita que acerta — é exatamente o que a regulagem
    do hop-up faz numa arma real, e é o argumento mais concreto do relatório.
+
+---
+
+## 6. Aviso: o builder recria a cena do zero
+
+**Airsoft → Construir cena completa** apaga e refaz `Player`, `Chao` e `Estande`
+inteiros. Qualquer alteração feita à mão no mapa (paredes movidas, alvos
+duplicados) é perdida. Depois de começar a montar o estande na Hierarchy, use o
+menu só se quiser mesmo recomeçar do zero.
 
 ---
 
@@ -242,8 +246,40 @@ dois passos em vez de só comparar as posições.
 | Rastro colorido por hop-up (azul/verde/vermelho) | `AirsoftWeapon → Color By Hop Up` |
 | Repetição da grama | `M_Chao → Base Map → Tiling` (padrão 200) |
 | Distâncias dos alvos | `AirsoftSceneBuilder.BuildTargets()` — vetor `distancias` |
+| Quanto o hop-up levanta a BB | `AirsoftWeapon → Max Backspin Drag` (4500 = trajetória rasa) |
 | Regerar as texturas | apague a pasta `_Airsoft/Textures` e reconstrua a cena |
 | Intensidade do brilho neon | Global Volume → Bloom → Intensity |
 | Sensibilidade do mouse | `PlayerController → Mouse Sensitivity` |
 | Arma cortada / mal posicionada | `WeaponHolder → Transform` (offset da mão direita) |
 | Cano ao contrário | menu **Airsoft → Ferramentas → Girar a arma 180°** |
+| Peças da arma fora do lugar | `AirsoftSceneBuilder.TidyWeaponParts()` — nunca na cena (ver abaixo) |
+
+### Por que o carregador não se ajusta pela cena
+
+O modelo `SM_Ak47` é um asset de terceiros cujos filhos (`Ak47_Magazine`,
+`AK47_Bullet`) vêm todos na origem: o carregador flutua ao lado do poço e a
+munição 7.62 fica pendurada na janela de ejeção. Como aqui o projétil é a BB de
+6mm, a munição foi removida e o carregador encaixado com o offset
+`(0, -0,075, -0,0125)`.
+
+A correção está **no prefab do asset e no `TidyWeaponParts()`**, não na cena. O
+`Construir cena completa` destrói e recria o `Player` inteiro a partir do prefab,
+então mover o carregador na Hierarchy só cria um *override de instância* — que
+desaparece no próximo rebuild. Esse era o motivo de a peça "sempre voltar para o
+lado da arma".
+
+
+---
+
+## 7. Armas e carregadores
+
+| Arma | Tipo (enum) | Mola (J) | BB | Carregador | RPM → cadência | Alcance |
+|---|---|---|---|---|---|---|
+| Pistola | PistolGlock | 0,5 | 0,12 g | 12 | 5 400 → 3 BB/s | ~40 m |
+| AK47 | Rifle | 1,49 | 0,20 g | 25 | 15 000 → 8,3 BB/s | ~65 m |
+| Sniper | Sniper | 4,5 | 0,45 g | 6 | 1 200 → 0,67 BB/s | ~100 m |
+
+- **Mola:** modelo simplificado — o ajuste é a própria energia do disparo. `v = √(2E/m)` usa a massa do carregador equipado.
+- **Cadência:** `ROF = RPM / (60 × N)`, com N = 30 rotações por disparo; `intervalo = 1 / ROF`. Aparece no Console ao equipar a arma.
+- **Carregador:** tipo, capacidade, quantidade e massa (kg nos cálculos, g na tela). Sem carregador ou sem bala, a arma não cria BB e mostra um aviso.
+- **Partida:** começa só com a pistola carregada. Cada fase concluída tem 50% de chance de cair um carregador na área do jogador. Só aparecem alvos que alguma arma com munição alcança. Acabou o tempo ou toda a munição, fim de jogo.

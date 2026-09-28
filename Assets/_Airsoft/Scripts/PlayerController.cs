@@ -12,9 +12,12 @@ namespace Airsoft
     /// Como a arma é filha da câmera, o cano aponta para onde você olha sem nenhuma
     /// linha de código extra: a hierarquia resolve.
     ///
-    /// Não usa Rigidbody nem CharacterController de propósito: sem collider no jogador,
-    /// a BB nunca colide com quem atirou, e o terreno é plano.
+    /// O movimento passa por um CharacterController para o jogador esbarrar nas paredes
+    /// em vez de atravessar o mapa. A BB do próprio atirador ignora essa cápsula
+    /// (ver <see cref="AirsoftWeapon.shooterBody"/>), senão o tiro morreria no peito de
+    /// quem puxou o gatilho ao mirar para baixo.
     /// </summary>
+    [RequireComponent(typeof(CharacterController))]
     public class PlayerController : MonoBehaviour
     {
         [Header("Referências")]
@@ -32,11 +35,32 @@ namespace Airsoft
         [Tooltip("Altura dos olhos, em metros.")]
         public float eyeHeight = 1.6f;
 
+        [Header("Corpo")]
+        [Tooltip("Raio da cápsula de colisão, em metros.")]
+        public float bodyRadius = 0.35f;
+        [Tooltip("Altura da cápsula de colisão, em metros.")]
+        public float bodyHeight = 1.8f;
+
+        CharacterController body;
+        float fallSpeed;
         float yaw;
         float pitch;
 
+        /// <summary>A cápsula do jogador, para a arma poder ignorá-la ao disparar.</summary>
+        public CharacterController Body => body;
+
         /// <summary>Ângulo de elevação da mira em graus. Positivo = mirando para cima.</summary>
         public float ElevationDeg => -pitch;
+
+        void Awake()
+        {
+            body = GetComponent<CharacterController>();
+            body.radius = bodyRadius;
+            body.height = bodyHeight;
+            body.center = new Vector3(0f, bodyHeight * 0.5f, 0f);
+            body.slopeLimit = 50f;
+            body.stepOffset = 0.3f;
+        }
 
         void Start()
         {
@@ -57,15 +81,6 @@ namespace Airsoft
             HandleCursor();
             HandleLook();
             HandleMove();
-
-            Keyboard kb = Keyboard.current;
-            if (kb != null && kb.fKey.wasPressedThisFrame)
-            {
-                // Nivela a mira. Comparar trajetórias de hop-up só é justo com o cano
-                // perfeitamente horizontal — 1 grau de elevação já muda o alcance.
-                pitch = 0f;
-                ApplyRotation();
-            }
         }
 
         void HandleCursor()
@@ -128,11 +143,15 @@ namespace Airsoft
             if (input.sqrMagnitude > 1f) input.Normalize();
 
             float speed = kb.leftShiftKey.isPressed ? runSpeed : walkSpeed;
-            Vector3 move = transform.TransformDirection(input) * (speed * Time.deltaTime);
+            Vector3 move = transform.TransformDirection(input) * speed;
 
-            Vector3 pos = transform.position + new Vector3(move.x, 0f, move.z);
-            pos.y = 0f;    // terreno plano: sem pulo, sem queda
-            transform.position = pos;
+            // Uma velocidade de queda pequena e constante enquanto apoiado: sem componente
+            // vertical o CharacterController nunca reporta isGrounded e o jogador passa a
+            // "flutuar" na borda de qualquer desnível.
+            fallSpeed = body.isGrounded ? -2f : fallSpeed - 9.81f * Time.deltaTime;
+            move.y = fallSpeed;
+
+            body.Move(move * Time.deltaTime);
         }
 
         static void SetCursorLocked(bool locked)

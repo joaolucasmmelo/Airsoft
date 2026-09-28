@@ -56,3 +56,7 @@ crashlytics-build.properties
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Cena de recuperação automática do editor
+/Assets/_Recovery/
+/Assets/_Recovery.meta

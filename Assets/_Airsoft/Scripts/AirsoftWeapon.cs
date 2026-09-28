@@ -4,14 +4,11 @@ using UnityEngine.InputSystem;
 namespace Airsoft
 {
     /// <summary>
-    /// A arma. Responsável por:
-    ///   - calcular a velocidade inicial da BB a partir da ENERGIA de saída (1.49 J);
-    ///   - instanciar o prefab da BB na boca do cano a cada clique;
-    ///   - traduzir a regulagem do hop-up (1% a 100%) na constante de backspin.
-    ///
-    /// A massa NÃO é digitada aqui: ela é lida do Rigidbody do próprio prefab da BB.
-    /// Assim, trocar a BB de 0.20g para 0.25g no prefab recalcula a velocidade sozinho,
-    /// que é exatamente o comportamento real (mesma mola, mesma energia, massas diferentes).
+    /// Uma arma. Responsável por:
+    ///   - disparar (SEMI ou AUTO, tecla F) respeitando a cadência do motor;
+    ///   - pegar a massa e a munição do carregador equipado;
+    ///   - calcular a velocidade da BB pela energia da mola: v = √(2E/m);
+    ///   - aplicar o hop-up (roda do mouse) na BB por meio do BackspinDrag.
     /// </summary>
     public class AirsoftWeapon : MonoBehaviour
     {
@@ -20,92 +17,123 @@ namespace Airsoft
         public Transform muzzle;
         public GameObject bbPrefab;
 
-        [Header("Disparo")]
-        [Tooltip("Energia cinética de saída, em Joules. Enunciado: 1.49 J.")]
+        [Tooltip("Corpo do jogador, para a BB não bater em quem atirou. Se ficar vazio, é procurado sozinho.")]
+        public Collider shooterBody;
+
+        [Header("Arma")]
+        public string modelo = "AK47";
+        [Tooltip("Só carregadores deste tipo servem nesta arma.")]
+        public TipoDeCarregador tipoDeCarregador = TipoDeCarregador.Rifle;
+        [Tooltip("Distância aproximada, em metros, que esta arma alcança. O GameManager usa para sortear alvos.")]
+        public float alcance = 65f;
+
+        [Header("Mola (modelo simplificado: o ajuste é a energia do disparo)")]
+        [Tooltip("Energia do disparo em Joules.")]
         public float muzzleEnergyJoules = 1.49f;
-        [Tooltip("Intervalo mínimo entre tiros, em segundos (segurar o botão dispara em rajada).")]
-        public float fireInterval = 0.12f;
+
+        [Header("Motor e cadência")]
+        [Tooltip("Rotação do motor em RPM.")]
+        public float rpmDoMotor = 15000f;
+        [Tooltip("Quantas rotações do motor são necessárias para um disparo.")]
+        public float rotacoesPorDisparo = 30f;
+        [Tooltip("Desligado = SEMI (um tiro por clique). Ligado = AUTO (atira segurando).")]
+        public bool automatico = false;
+
+        [Header("Carregador desta arma")]
+        public int capacidadeDoCarregador = 25;
+        [Tooltip("Massa da BB em kg (0.0002 = 0,20 g).")]
+        public float massaDaBBKg = 0.0002f;
 
         [Header("Hop-up")]
-        [Range(1f, 100f)]
+        [Range(5f, 100f)]
         [Tooltip("Regulagem do hop-up. Ajuste em jogo com a RODA DO MOUSE.")]
         public float hopUpPercent = 55f;
 
-        [Tooltip("BackspinDrag quando o hop-up está em 100%. Calibrado por simulação: " +
-                 "0% -> ~35m (pouco hop) | ~55% -> ~63m plano (ideal) | 100% -> ~88m subindo muito.")]
-        public float maxBackspinDrag = 0.00065f;
-
-        [Tooltip("Velocidade angular do backspin a 100%, em rad/s (usada no modelo Completo). " +
-                 "4500 rad/s = ~43.000 rpm.")]
-        public float maxSpinRate = 4500f;
-
-        public MagnusModel magnusModel = MagnusModel.Simplificado;
+        [Tooltip("BackspinDrag a 100% de hop-up (é o ω da fórmula, em rad/s). 4500 mantém a trajetória rasa.")]
+        public float maxBackspinDrag = 4500f;
 
         [Header("Sensibilidade dos controles")]
         public float hopStepScroll = 5f;
         public float hopStepKey = 1f;
 
         [Header("Rastro")]
-        [Tooltip("Ligado: o rastro muda de azul->verde->vermelho conforme o hop-up, " +
-                 "como no diagrama do enunciado. Desligado: sempre azul neon.")]
         public bool colorByHopUp = false;
         public Color neonColor = new Color(0f, 0.55f, 1f, 1f);
 
-        // ---------- valores derivados ----------
+        // Carregador equipado agora (null = sem carregador). Quem coloca é o ArmasDoJogador.
+        [System.NonSerialized] public Carregador carregador;
 
-        /// <summary>Massa da BB, lida do prefab (kg).</summary>
-        public float BbMassKg { get; private set; } = 0.0002f;
+        // Ligado antes do START (treino): atira sem gastar bala.
+        [System.NonSerialized] public bool municaoInfinita;
 
-        /// <summary>
-        /// v0 = sqrt(2E/m).  Com E = 1.49 J e m = 0.0002 kg  ->  122.07 m/s  =  400.5 fps.
-        /// </summary>
-        public float MuzzleSpeed => Mathf.Sqrt(2f * muzzleEnergyJoules / Mathf.Max(BbMassKg, 1e-9f));
+        // ---------- valores calculados ----------
 
-        public float MuzzleSpeedFps => MuzzleSpeed / 0.3048f;
+        /// <summary>Cadência em BBs por segundo: ROF = RPM / (60 × N).</summary>
+        public float ROF
+        {
+            get { return rpmDoMotor / (60f * rotacoesPorDisparo); }
+        }
 
-        /// <summary>Constante do modelo simplificado para a regulagem atual.</summary>
-        public float BackspinDrag => maxBackspinDrag * (hopUpPercent / 100f);
+        /// <summary>Tempo mínimo entre dois tiros: intervalo = 1 / ROF.</summary>
+        public float IntervaloEntreTiros
+        {
+            get { return 1f / ROF; }
+        }
 
-        /// <summary>Velocidade angular do backspin para a regulagem atual (rad/s).</summary>
-        public float SpinRate => maxSpinRate * (hopUpPercent / 100f);
+        /// <summary>Massa da BB em kg: vem do carregador equipado.</summary>
+        public float BbMassKg
+        {
+            get { return carregador != null ? carregador.massaDaBBKg : massaDaBBKg; }
+        }
 
-        /// <summary>Ângulo de elevação do cano em graus. 0 = perfeitamente horizontal.</summary>
-        public float ElevationDeg =>
-            muzzle == null ? 0f : Mathf.Asin(Mathf.Clamp(muzzle.forward.y, -1f, 1f)) * Mathf.Rad2Deg;
+        /// <summary>v0 = √(2E/m)</summary>
+        public float MuzzleSpeed
+        {
+            get { return Mathf.Sqrt(2f * muzzleEnergyJoules / BbMassKg); }
+        }
 
-        public int ShotCount { get; private set; }
+        public float MuzzleSpeedFps
+        {
+            get { return MuzzleSpeed / 0.3048f; }
+        }
 
-        float nextFireTime;
+        /// <summary>BackspinDrag enviado para a BB com a regulagem atual.</summary>
+        public float BackspinDrag
+        {
+            get { return maxBackspinDrag * (hopUpPercent / 100f); }
+        }
+
+        public float ElevationDeg
+        {
+            get { return muzzle == null ? 0f : Mathf.Asin(Mathf.Clamp(muzzle.forward.y, -1f, 1f)) * Mathf.Rad2Deg; }
+        }
+
+        float proximoTiro = 0f;
 
         void Awake()
         {
-            if (bbPrefab != null)
-            {
-                Rigidbody prefabRb = bbPrefab.GetComponent<Rigidbody>();
-                if (prefabRb != null) BbMassKg = prefabRb.mass;
-                else Debug.LogWarning("[Airsoft] O prefab da BB não tem Rigidbody!", this);
-            }
+            if (shooterBody == null)
+                shooterBody = GetComponentInParent<CharacterController>();
         }
 
         void Start()
         {
-            // Verificação pedida no enunciado: conferir a velocidade inicial pelo Console.
-            Debug.Log(
-                $"[Airsoft] Energia de saída = {muzzleEnergyJoules} J | massa da BB = {BbMassKg * 1000f:0.###} g\n" +
-                $"          v0 = sqrt(2E/m) = sqrt(2 * {muzzleEnergyJoules} / {BbMassKg}) = " +
-                $"{MuzzleSpeed:0.00} m/s = {MuzzleSpeedFps:0.0} fps   (alvo do enunciado: ~400 fps)");
+            // ROF visível no Console, como pede o enunciado
+            Debug.Log("[Airsoft] " + modelo + ": ROF = " + rpmDoMotor + " / (60 × " + rotacoesPorDisparo + ") = " +
+                      ROF.ToString("0.00") + " BB/s, intervalo = " + IntervaloEntreTiros.ToString("0.000") + " s" +
+                      " | v0 = √(2 × " + muzzleEnergyJoules + " / " + massaDaBBKg + ") = " +
+                      Mathf.Sqrt(2f * muzzleEnergyJoules / massaDaBBKg).ToString("0.0") + " m/s");
         }
 
         void Update()
         {
-            HandleHopUpInput();
-            HandleFireInput();
+            ControlarHopUp();
+            ControlarModoDeTiro();
+            ControlarGatilho();
         }
 
-        void HandleHopUpInput()
+        void ControlarHopUp()
         {
-            // A roda do mouse regula o hop-up. Isso imita o dial da arma real e, mais
-            // importante, funciona com o cursor travado (obrigatório em primeira pessoa).
             Mouse mouse = Mouse.current;
             if (mouse != null)
             {
@@ -114,82 +142,99 @@ namespace Airsoft
                     SetHopUp(hopUpPercent + Mathf.Sign(scroll) * hopStepScroll);
             }
 
-            Keyboard kb = Keyboard.current;
-            if (kb != null)
+            Keyboard teclado = Keyboard.current;
+            if (teclado != null)
             {
-                if (kb.upArrowKey.wasPressedThisFrame) SetHopUp(hopUpPercent + hopStepKey);
-                if (kb.downArrowKey.wasPressedThisFrame) SetHopUp(hopUpPercent - hopStepKey);
-                if (kb.mKey.wasPressedThisFrame) ToggleMagnusModel();
+                if (teclado.upArrowKey.wasPressedThisFrame) SetHopUp(hopUpPercent + hopStepKey);
+                if (teclado.downArrowKey.wasPressedThisFrame) SetHopUp(hopUpPercent - hopStepKey);
             }
         }
 
-        void HandleFireInput()
+        void ControlarModoDeTiro()
+        {
+            Keyboard teclado = Keyboard.current;
+            if (teclado != null && teclado.fKey.wasPressedThisFrame)
+            {
+                // Só troca o modo: não recarrega e não mexe no tempo do próximo tiro
+                automatico = !automatico;
+                AirsoftHUD.Mensagem("Modo " + (automatico ? "AUTO" : "SEMI"));
+            }
+        }
+
+        void ControlarGatilho()
         {
             Mouse mouse = Mouse.current;
             if (mouse == null) return;
             if (Cursor.lockState != CursorLockMode.Locked) return;   // não atira com o mouse solto
 
-            if (mouse.leftButton.isPressed && Time.time >= nextFireTime)
-            {
-                nextFireTime = Time.time + fireInterval;
+            // SEMI: só no clique. AUTO: enquanto o botão estiver apertado.
+            bool querAtirar;
+            if (automatico)
+                querAtirar = mouse.leftButton.isPressed;
+            else
+                querAtirar = mouse.leftButton.wasPressedThisFrame;
+
+            // Nos dois modos o tiro espera o intervalo da cadência
+            if (querAtirar && Time.time >= proximoTiro)
                 Fire();
-            }
         }
 
         public void SetHopUp(float percent)
         {
-            hopUpPercent = Mathf.Clamp(percent, 1f, 100f);
-        }
-
-        public void ToggleMagnusModel()
-        {
-            magnusModel = magnusModel == MagnusModel.Simplificado
-                ? MagnusModel.Completo
-                : MagnusModel.Simplificado;
-            Debug.Log($"[Airsoft] Modelo de Magnus: {magnusModel}");
+            hopUpPercent = Mathf.Clamp(percent, 5f, 100f);
         }
 
         public void Fire()
         {
-            if (bbPrefab == null || muzzle == null)
+            // 1) tem carregador?
+            if (carregador == null)
             {
-                Debug.LogError("[Airsoft] Arma sem prefab de BB ou sem Muzzle atribuído.", this);
+                AirsoftHUD.Mensagem("SEM CARREGADOR");
                 return;
             }
 
-            GameObject go = Instantiate(bbPrefab, muzzle.position, muzzle.rotation,
-                                        BBProjectile.Container);
-            go.name = $"BB_{ShotCount:000}";
-
-            BBProjectile bb = go.GetComponent<BBProjectile>();
-            if (bb != null)
+            // 2) tem munição? Sem bala, não cria BB.
+            if (!municaoInfinita && !carregador.TemBala())
             {
-                bb.magnusModel = magnusModel;
-                bb.backspinDrag = BackspinDrag;
-                bb.spinRateRadPerSec = SpinRate;
-                bb.hopUpPercent = hopUpPercent;
-                bb.elevationDeg = ElevationDeg;
-                bb.Launch(muzzle.position, muzzle.forward, MuzzleSpeed);
+                AirsoftHUD.Mensagem("SEM MUNIÇÃO");
+                return;
             }
+
+            proximoTiro = Time.time + IntervaloEntreTiros;
+
+            // 3) cria a BB com a massa do carregador
+            GameObject go = Instantiate(bbPrefab, muzzle.position, muzzle.rotation, BBProjectile.Container);
+            go.GetComponent<Rigidbody>().mass = carregador.massaDaBBKg;
+
+            Collider bbCol = go.GetComponent<Collider>();
+            if (bbCol != null && shooterBody != null)
+                Physics.IgnoreCollision(bbCol, shooterBody);
+
+            // 4) velocidade pela energia atual: v = √(2E/m)
+            BBProjectile bb = go.GetComponent<BBProjectile>();
+            bb.backspinDrag = BackspinDrag;
+            bb.hopUpPercent = hopUpPercent;
+            bb.elevationDeg = ElevationDeg;
+            bb.Launch(muzzle.position, muzzle.forward, MuzzleSpeed);
 
             TrailRenderer trail = go.GetComponentInChildren<TrailRenderer>();
             if (trail != null) ApplyTrailColor(trail);
 
-            ShotCount++;
+            // 5) só agora, com o tiro feito, gasta uma bala (no treino não gasta)
+            if (!municaoInfinita)
+                carregador.GastarUmaBala();
+        }
 
-            if (ShotCount == 1)
-            {
-                Debug.Log($"[Airsoft] Primeiro disparo: v0 medida no Rigidbody = " +
-                          $"{(bb != null ? bb.GetComponent<Rigidbody>().linearVelocity.magnitude : 0f):0.00} m/s");
-            }
+        /// <summary>Cria um carregador cheio do tipo desta arma.</summary>
+        public Carregador NovoCarregadorCheio()
+        {
+            return new Carregador(tipoDeCarregador, capacidadeDoCarregador, capacidadeDoCarregador, massaDaBBKg);
         }
 
         void ApplyTrailColor(TrailRenderer trail)
         {
             Color c = colorByHopUp ? HopUpColor(hopUpPercent) : neonColor;
 
-            // O material do rastro é branco HDR (aditivo). A cor vem daqui, e o degradê
-            // de alpha (opaco -> transparente) é o que produz o efeito de ghosting.
             Gradient g = new Gradient();
             g.SetKeys(
                 new[] { new GradientColorKey(c, 0f), new GradientColorKey(c, 1f) },
@@ -202,7 +247,7 @@ namespace Airsoft
             trail.colorGradient = g;
         }
 
-        /// <summary>Azul (pouco hop) -> verde (ideal) -> vermelho (muito hop), como no enunciado.</summary>
+        /// <summary>Azul (pouco hop) -> verde (ideal) -> vermelho (muito hop).</summary>
         public static Color HopUpColor(float percent)
         {
             Color pouco = new Color(0.15f, 0.45f, 1f);

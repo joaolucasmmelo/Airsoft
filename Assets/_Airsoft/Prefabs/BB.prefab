@@ -190,9 +190,7 @@ MonoBehaviour:
   airDensity: 1.225
   dragCoefficient: 0.47
   enableDrag: 1
-  magnusModel: 0
   backspinDrag: 0
-  spinRateRadPerSec: 0
   magnusLiftFactor: 0.25
   spinHalfLife: 0
   maxLifetime: 25

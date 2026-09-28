@@ -31,7 +31,15 @@ namespace AirsoftEditor
         // O Plane tem UV de 0 a 1 no seu comprimento inteiro (600 m aqui),
         // então precisa de MUITA repetição: 200 = um ladrilho a cada 3 m.
         const float GroundTiles = 200f;
-        static readonly Vector3 HolderOffset = new Vector3(0.20f, -0.17f, 0.26f);
+        internal static readonly Vector3 HolderOffset = new Vector3(0.20f, -0.17f, 0.26f);
+
+        // O SM_Ak47 vem com o carregador e uma munição 7.62 como objetos SOLTOS, ambos
+        // na origem — o carregador flutua ao lado do poço e a munição fica pendurada na
+        // janela de ejeção. O offset abaixo encaixa o carregador; a munição é desligada
+        // porque quem voa aqui é a BB de 6mm.
+        const string MagazineName = "Ak47_Magazine";
+        const string BulletName = "AK47_Bullet";
+        static readonly Vector3 MagazineOffset = new Vector3(0f, -0.075f, -0.0125f);
 
         // Nomes que o builder é dono e pode apagar entre execuções
         static readonly string[] Owned =
@@ -42,9 +50,16 @@ namespace AirsoftEditor
         };
 
         // =================================================================
-        [MenuItem("Airsoft/Construir cena completa", false, 0)]
+        [MenuItem("Airsoft/Ferramentas/Construir cena do ZERO (apaga o mapa)", false, 50)]
         public static void BuildAll()
         {
+            bool confirmou = EditorUtility.DisplayDialog(
+                "Construir cena do zero",
+                "Isso APAGA o estande, as paredes, os alvos e o Player da cena e cria tudo de novo.\n\n" +
+                "Qualquer alteração feita à mão no mapa será perdida. Continuar?",
+                "Apagar e reconstruir", "Cancelar");
+            if (!confirmou) return;
+
             EnsureFolders();
             CheckTimeSettings();
 
@@ -57,13 +72,11 @@ namespace AirsoftEditor
             Material mBB = MakeBBMaterial();
             Material mTrail = MakeTrailMaterial();
             Material mMarker = MakeNeonMaterial("M_Marcador", new Color(1f, 0.45f, 0.15f), 3.2f);
-            Material mPost = MakeNeonMaterial("M_Poste", new Color(0.15f, 0.6f, 1f), 1.4f);
-            Material mPostBig = MakeNeonMaterial("M_PosteGrande", new Color(0.25f, 1f, 0.6f), 2.6f);
 
             GameObject markerPrefab = BuildMarkerPrefab(mMarker);
             GameObject bbPrefab = BuildBBPrefab(mBB, mTrail, markerPrefab);
 
-            BuildScene(mChao, mPost, mPostBig, bbPrefab,
+            BuildScene(mChao, bbPrefab,
                        mParede, mAlvoBranco, mAlvoVermelho, mAlvoCentro, mPosteAlvo);
             TuneBloom();
 
@@ -72,8 +85,7 @@ namespace AirsoftEditor
             EditorSceneManager.SaveOpenScenes();
 
             Debug.Log("[Airsoft] Cena construída. Aperte Play.\n" +
-                      "Controles: mouse=olhar · WASD=andar · clique=atirar · roda=hop-up · " +
-                      "F=nivelar · V=câmera lateral · R=limpar · H=ajuda");
+                      "Controles: mouse=olhar · WASD=andar · clique=atirar · roda=hop-up · H=ajuda");
         }
 
         [MenuItem("Airsoft/Ferramentas/Rolar a arma 90° (se estiver deitada de lado)", false, 21)]
@@ -398,7 +410,7 @@ namespace AirsoftEditor
         //  Cena
         // =================================================================
 
-        static void BuildScene(Material mChao, Material mPost, Material mPostBig, GameObject bbPrefab,
+        static void BuildScene(Material mChao, GameObject bbPrefab,
                                Material mParede, Material mAlvoBranco, Material mAlvoVermelho,
                                Material mAlvoCentro, Material mPosteAlvo)
         {
@@ -431,20 +443,8 @@ namespace AirsoftEditor
             ground.transform.localScale = new Vector3(60f, 1f, 60f);   // 600 x 600 m
             ground.GetComponent<MeshRenderer>().sharedMaterial = mChao;
 
-            // ---------- estande: marcas de distância ----------
+            // ---------- estande ----------
             GameObject range = new GameObject("Estande");
-            for (int d = 10; d <= 130; d += 10)
-            {
-                bool big = d % 50 == 0;
-                float hgt = big ? 2.2f : 0.75f;
-                for (int s = -1; s <= 1; s += 2)
-                {
-                    GameObject post = MakePrimitive(PrimitiveType.Cube, $"Marca_{d}m",
-                        range.transform, big ? mPostBig : mPost);
-                    post.transform.localScale = new Vector3(0.11f, hgt, 0.11f);
-                    post.transform.localPosition = new Vector3(s * 3.5f, hgt * 0.5f, d);
-                }
-            }
 
             BuildWalls(range.transform, mParede);
             BuildTargets(range.transform, mAlvoBranco, mAlvoVermelho, mAlvoCentro, mPosteAlvo);
@@ -485,6 +485,12 @@ namespace AirsoftEditor
             {
                 GameObject ak = (GameObject)PrefabUtility.InstantiatePrefab(akAsset);
                 ak.transform.SetParent(holder.transform, false);
+
+                // ANTES do FitViewmodel: ele mede a caixa envolvente de todas as malhas
+                // para achar o cano. Com a munição ligada e o carregador fora do lugar,
+                // a medida sai errada e a arma inteira desalinha.
+                TidyWeaponParts(ak);
+
                 muzzleLocal = FitViewmodel(ak, holder.transform);
                 ApplyGunMaterial(ak);
                 Collider[] cols = ak.GetComponentsInChildren<Collider>();
@@ -516,33 +522,28 @@ namespace AirsoftEditor
             muzzle.transform.localPosition = muzzleLocal;
             muzzle.transform.localRotation = Quaternion.identity;   // forward == direção do olhar
 
-            // ---------- câmera lateral (modo análise) ----------
-            GameObject sideGO = new GameObject("Camera_Analise");
-            sideGO.transform.SetPositionAndRotation(
-                new Vector3(58f, 9f, 45f), Quaternion.Euler(0f, -90f, 0f));
-            Camera side = sideGO.AddComponent<Camera>();
-            side.fieldOfView = 60f;
-            side.nearClipPlane = 0.3f;
-            side.farClipPlane = 1500f;
-            side.enabled = false;
-
             // ---------- componentes e ligações ----------
             AirsoftWeapon weapon = holder.AddComponent<AirsoftWeapon>();
             weapon.muzzle = muzzle.transform;
             weapon.bbPrefab = bbPrefab;
 
+            // O CharacterController entra ANTES do PlayerController: o [RequireComponent]
+            // adicionaria um com os valores padrão do Unity, e o Awake() do controller
+            // é quem dimensiona a cápsula.
+            CharacterController body = player.AddComponent<CharacterController>();
+
             PlayerController pc = player.AddComponent<PlayerController>();
             pc.cameraPivot = camGO.transform;
             pc.eyeHeight = EyeHeight;
 
-            CameraToggle toggle = player.AddComponent<CameraToggle>();
-            toggle.fpsCamera = cam;
-            toggle.sideCamera = side;
+            weapon.shooterBody = body;
+
+            ArmasDoJogador armas = player.AddComponent<ArmasDoJogador>();
+            armas.armas = new[] { weapon };
 
             AirsoftHUD hud = player.AddComponent<AirsoftHUD>();
-            hud.weapon = weapon;
+            hud.armas = armas;
             hud.player = pc;
-            hud.cameraToggle = toggle;
 
             // ---------- luz ----------
             Light sun = Object.FindAnyObjectByType<Light>();
@@ -551,6 +552,30 @@ namespace AirsoftEditor
                 sun.transform.rotation = Quaternion.Euler(42f, 35f, 0f);
                 sun.intensity = 1.15f;
                 sun.shadows = LightShadows.Soft;
+            }
+        }
+
+        /// <summary>
+        /// Encaixa o carregador e desliga a munição solta do modelo da AK.
+        ///
+        /// O prefab do asset já vem corrigido, mas isto fica aqui de propósito: o
+        /// modelo é de terceiros e uma reimportação do .fbx devolve os filhos à origem.
+        /// Como o `Construir cena completa` recria o Player do zero, qualquer ajuste
+        /// feito à mão na CENA seria um override de instância — e sumiria no próximo
+        /// rebuild. Corrigir aqui é o único lugar que sobrevive.
+        /// </summary>
+        internal static void TidyWeaponParts(GameObject ak)
+        {
+            foreach (Transform t in ak.GetComponentsInChildren<Transform>(true))
+            {
+                // Carregadores vêm soltos na origem nos modelos do pacote: encaixa cada um
+                if (t.name == MagazineName) t.localPosition = MagazineOffset;
+                else if (t.name == "FNFiveSeven_Magazine") t.localPosition = new Vector3(0f, 0f, -0.06f);
+                else if (t.name == "Barrett_M82A1_Magazine") t.localPosition = new Vector3(0.19f, -0.1f, -0.008f);
+
+                // SetActive em vez de destruir: o Unity não deixa apagar um filho de
+                // instância de prefab por script, mas desativar é um override válido.
+                else if (t.name == BulletName) t.gameObject.SetActive(false);
             }
         }
 
@@ -569,7 +594,7 @@ namespace AirsoftEditor
         ///   3. a ponta com a MENOR espessura é o cano (a outra é a coronha/carregador);
         ///   4. reposiciona e mede a ponta do cano.
         /// </summary>
-        static Vector3 FitViewmodel(GameObject model, Transform holder)
+        internal static Vector3 FitViewmodel(GameObject model, Transform holder, float comprimento = TargetGunLength)
         {
             model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.identity;
@@ -594,7 +619,7 @@ namespace AirsoftEditor
             pts = GatherPoints(model, holder);
             b = BoundsOf(pts);
             if (b.size.z > 0.0001f)
-                model.transform.localScale = Vector3.one * (TargetGunLength / b.size.z);
+                model.transform.localScale = Vector3.one * (comprimento / b.size.z);
 
             // 3) escolhe a melhor entre as 8 poses (4 rolagens x 2 sentidos)
             pts = GatherPoints(model, holder);
@@ -719,7 +744,7 @@ namespace AirsoftEditor
             return frontMinY - rearMinY;
         }
 
-        static void ApplyGunMaterial(GameObject ak)
+        internal static void ApplyGunMaterial(GameObject ak)
         {
             Material gunMat = AssetDatabase.LoadAssetAtPath<Material>(GunMaterialPath);
             if (gunMat == null)
@@ -863,10 +888,8 @@ namespace AirsoftEditor
             // Fundo: alto o bastante para conter até os tiros de hop-up excessivo.
             MakeWall(parent, mParede, "Parede_Fundo", new Vector3(0f, 6f, 132f), new Vector3(70f, 12f, 1f));
 
-            // Só a parede ESQUERDA: o lado direito fica livre porque é de lá que a
-            // Camera_Analise (x = 58) enxerga as trajetórias de perfil.
             MakeWall(parent, mParede, "Parede_Esquerda", new Vector3(-14f, 2f, 58f), new Vector3(1f, 4f, 150f));
-
+            MakeWall(parent, mParede, "Parede_Direita", new Vector3(14f, 2f, 58f), new Vector3(1f, 4f, 150f));
             MakeWall(parent, mParede, "Parede_Tras", new Vector3(0f, 2f, -16f), new Vector3(36f, 4f, 1f));
         }
 
@@ -894,7 +917,7 @@ namespace AirsoftEditor
         static void BuildTargets(Transform parent, Material mBranco, Material mVermelho,
                                  Material mCentro, Material mPoste)
         {
-            float[] distancias = { 10f, 20f, 30f, 40f, 50f, 60f, 75f, 90f };
+            float[] distancias = { 10f, 20f, 30f, 40f, 50f, 60f, 65f };
 
             for (int i = 0; i < distancias.Length; i++)
             {
